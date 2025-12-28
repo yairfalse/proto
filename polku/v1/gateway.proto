@@ -1,0 +1,110 @@
+// gateway.proto - POLKU Gateway service definition
+//
+// POLKU is an open-source pluggable gRPC event gateway.
+// It's format-agnostic - users provide plugins for their specific formats.
+//
+// Supports two modes:
+//   1. Transform mode: Clients send raw bytes, InputPlugins transform them
+//   2. Pass-through mode: Clients send pre-formatted events, no transformation
+//
+// Users can extend POLKU by implementing:
+//   - InputPlugin: Transform source-specific bytes → Event
+//   - OutputPlugin: Send Events to any destination
+
+syntax = "proto3";
+
+package polku.v1;
+
+// Gateway service - the main entry point for event ingestion
+service Gateway {
+    // Bidirectional streaming for high-throughput event ingestion
+    rpc StreamEvents(stream IngestBatch) returns (stream Ack);
+
+    // Unary RPC for single event submission
+    rpc SendEvent(IngestEvent) returns (Ack);
+
+    // Health check endpoint
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Batch of events for streaming ingestion
+message IngestBatch {
+    string source = 1;      // Source identifier (e.g., "my-agent", "otel-collector")
+    string cluster = 2;     // Cluster/environment identifier
+
+    // Either raw bytes (needs plugin transformation) or pre-formatted events
+    oneof payload {
+        RawPayload raw = 3;
+        EventPayload events = 4;
+    }
+}
+
+// Raw bytes payload - requires InputPlugin transformation
+message RawPayload {
+    bytes data = 1;         // Serialized source-specific format
+    string format = 2;      // Format hint: "protobuf", "json", "msgpack", etc.
+}
+
+// Pre-formatted events - pass-through mode (no transformation)
+message EventPayload {
+    repeated Event events = 1;
+}
+
+// Single event for unary ingestion
+message IngestEvent {
+    string source = 1;
+    string cluster = 2;
+
+    oneof payload {
+        bytes raw = 3;      // Raw bytes (needs transformation)
+        Event event = 4;    // Pre-formatted event (pass-through)
+    }
+
+    string format = 5;      // Format hint for raw payload
+}
+
+// POLKU's internal event envelope
+// This is what InputPlugins produce and OutputPlugins consume.
+// The payload is opaque bytes - POLKU doesn't interpret it.
+message Event {
+    string id = 1;                      // Unique event ID (ULID recommended)
+    int64 timestamp_unix_ns = 2;        // Unix timestamp in nanoseconds
+    string source = 3;                  // Source that produced this event
+    string event_type = 4;              // User-defined event type (e.g., "network", "log")
+    map<string, string> metadata = 5;   // Arbitrary key-value metadata
+
+    // The actual event payload - opaque to POLKU
+    bytes payload = 6;
+
+    // Optional routing hints for OutputPlugins
+    repeated string route_to = 7;       // Which outputs to send to (empty = all)
+}
+
+// Acknowledgment response
+message Ack {
+    repeated string event_ids = 1;      // Successfully processed event IDs
+    repeated AckError errors = 2;       // Errors for failed events
+    int64 buffer_size = 3;              // Current buffer size (for backpressure)
+    int64 buffer_capacity = 4;          // Max buffer capacity
+}
+
+message AckError {
+    string event_id = 1;
+    string code = 2;
+    string message = 3;
+}
+
+// Health check
+message HealthRequest {}
+
+message HealthResponse {
+    bool healthy = 1;
+    map<string, ComponentHealth> components = 2;
+    int64 uptime_seconds = 3;
+    uint64 events_processed = 4;
+}
+
+message ComponentHealth {
+    bool healthy = 1;
+    string message = 2;
+}

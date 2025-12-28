@@ -1,0 +1,20 @@
+# buf.gen.yaml - Code generation for multiple languages
+#
+# Generates:
+#   - Go code in gen/go/
+#   - Rust code via prost (consumers run their own generation)
+
+version: v2
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/yairfalse/proto/gen/go
+
+plugins:
+  # Go protobuf structs
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+    opt:
+      - paths=source_relative

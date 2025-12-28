@@ -1,0 +1,17 @@
+# Generated code (regenerate with buf generate)
+gen/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*

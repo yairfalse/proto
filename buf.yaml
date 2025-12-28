@@ -1,0 +1,29 @@
+# buf.yaml - False Systems Central Proto Repository
+# Contains all protobuf schemas for the observability platform
+#
+# Modules:
+#   - tapio/v1  : raw.ebpf format (eBPF agent events)
+#   - portti/v1 : raw.k8s format (K8s API events)
+#   - elava/v1  : raw.otel format (OTEL logs/traces)
+#   - ahti/v1   : AhtiEvent format (central intelligence)
+
+version: v2
+
+modules:
+  - path: .
+    name: buf.build/falsesystems/proto
+
+lint:
+  use:
+    - STANDARD
+  except:
+    - COMMENT_FIELD
+    - COMMENT_MESSAGE
+    - COMMENT_ENUM
+    - COMMENT_ENUM_VALUE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+
+breaking:
+  use:
+    - FILE

@@ -1,0 +1,185 @@
+// raw.proto - TAPIO's raw eBPF event format
+//
+// This is TAPIO's output format. POLKU transforms this to AhtiEvent.
+// TAPIO owns this schema - no ahti/domain dependency.
+
+syntax = "proto3";
+
+package tapio.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// RawEbpfEvent is TAPIO's output format
+// POLKU transforms this to AhtiEvent
+message RawEbpfEvent {
+    // Identity
+    string id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+
+    // Classification
+    EbpfType type = 3;
+    string subtype = 4;  // connection_reset, oom_kill, io_spike
+
+    // Context (enriched by K8sContextService)
+    string cluster_id = 5;
+    string node_name = 6;
+    string namespace = 7;
+    string pod_name = 8;
+    string container_id = 9;
+    string container_name = 10;
+
+    // Type-specific data (one of these set)
+    oneof data {
+        NetworkData network = 20;
+        ContainerData container = 21;
+        StorageData storage = 22;
+        MemoryData memory = 23;
+        CPUData cpu = 24;
+    }
+}
+
+enum EbpfType {
+    EBPF_TYPE_UNSPECIFIED = 0;
+    EBPF_TYPE_NETWORK = 1;
+    EBPF_TYPE_CONTAINER = 2;
+    EBPF_TYPE_STORAGE = 3;
+    EBPF_TYPE_MEMORY = 4;
+    EBPF_TYPE_CPU = 5;
+}
+
+// =============================================================================
+// NETWORK DATA
+// =============================================================================
+
+message NetworkData {
+    // Connection info
+    string protocol = 1;       // tcp, udp, dns
+    string src_ip = 2;
+    uint32 src_port = 3;
+    string dst_ip = 4;
+    uint32 dst_port = 5;
+
+    // Enriched context (from K8sContextService)
+    string src_pod = 6;
+    string dst_pod = 7;
+    string dst_service = 8;    // If dst is a ClusterIP
+
+    // Metrics
+    uint64 bytes_sent = 10;
+    uint64 bytes_recv = 11;
+    uint64 rtt_us = 12;        // Round-trip time in microseconds
+    uint64 retransmits = 13;
+
+    // DNS specific
+    string dns_query = 20;
+    repeated string dns_answers = 21;
+    uint32 dns_rcode = 22;
+
+    // Failure info
+    string error_code = 30;    // ECONNREFUSED, ETIMEDOUT, etc.
+}
+
+// =============================================================================
+// CONTAINER DATA
+// =============================================================================
+
+message ContainerData {
+    string container_id = 1;
+    string container_name = 2;
+    string image = 3;
+    string state = 4;          // created, running, exited, oom_killed
+
+    // Exit info
+    int32 exit_code = 10;
+    string exit_reason = 11;
+    int32 signal = 12;
+
+    // OOM info
+    uint64 oom_score = 20;
+    uint64 memory_limit = 21;
+    uint64 memory_usage = 22;
+
+    // cgroup info
+    string cgroup_path = 30;
+    uint64 cgroup_id = 31;
+
+    // Process info
+    uint32 pid = 40;
+}
+
+// =============================================================================
+// STORAGE DATA (Priority 1 - NEW)
+// =============================================================================
+
+message StorageData {
+    string device = 1;         // /dev/sda, /dev/nvme0n1
+    string mount_point = 2;    // /var/lib/containers
+
+    // Operation
+    string operation = 3;      // read, write, sync
+    uint64 bytes = 4;
+    uint64 latency_us = 5;
+
+    // Queue info
+    uint32 queue_depth = 10;
+    uint64 io_wait_us = 11;
+
+    // Error info
+    string error_code = 20;
+}
+
+// =============================================================================
+// MEMORY DATA (Priority 2 - NEW)
+// =============================================================================
+
+message MemoryData {
+    // Pressure
+    string pressure_level = 1;  // low, medium, critical
+    uint64 pressure_stall_us = 2;
+
+    // Usage
+    uint64 usage_bytes = 10;
+    uint64 limit_bytes = 11;
+    uint64 cache_bytes = 12;
+    uint64 rss_bytes = 13;
+
+    // Reclaim
+    uint64 pgfault_major = 20;
+    uint64 pgfault_minor = 21;
+    uint64 reclaim_count = 22;
+
+    // cgroup path
+    string cgroup_path = 30;
+}
+
+// =============================================================================
+// CPU DATA (Priority 3 - NEW)
+// =============================================================================
+
+message CPUData {
+    // Throttling
+    uint64 throttled_us = 1;
+    uint64 throttled_count = 2;
+
+    // Scheduling
+    uint64 runqueue_latency_us = 10;
+    uint64 wait_us = 11;
+
+    // Usage
+    uint64 usage_us = 20;
+    uint64 limit_us = 21;      // CFS quota
+
+    // cgroup path
+    string cgroup_path = 30;
+}
+
+// =============================================================================
+// BATCH MESSAGE (for streaming to POLKU)
+// =============================================================================
+
+message EventBatch {
+    repeated RawEbpfEvent events = 1;
+    string source = 2;         // "tapio"
+    string cluster_id = 3;
+    string node_name = 4;
+}
