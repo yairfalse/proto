@@ -1,5 +1,5 @@
-# Generated code (regenerate with buf generate)
-gen/
+# Generated code is tracked for Go module imports
+# Regenerate with: buf generate
 
 # IDE
 .vscode/

@@ -1121,8 +1121,8 @@ const file_tapio_v1_raw_proto_rawDesc = "" +
 	"\x13EBPF_TYPE_CONTAINER\x10\x02\x12\x15\n" +
 	"\x11EBPF_TYPE_STORAGE\x10\x03\x12\x14\n" +
 	"\x10EBPF_TYPE_MEMORY\x10\x04\x12\x11\n" +
-	"\rEBPF_TYPE_CPU\x10\x05B\x90\x01\n" +
-	"\fcom.tapio.v1B\bRawProtoP\x01Z5github.com/falsesystems/proto/gen/go/tapio/v1;tapiov1\xa2\x02\x03TXX\xaa\x02\bTapio.V1\xca\x02\bTapio\\V1\xe2\x02\x14Tapio\\V1\\GPBMetadata\xea\x02\tTapio::V1b\x06proto3"
+	"\rEBPF_TYPE_CPU\x10\x05B\x8d\x01\n" +
+	"\fcom.tapio.v1B\bRawProtoP\x01Z2github.com/yairfalse/proto/gen/go/tapio/v1;tapiov1\xa2\x02\x03TXX\xaa\x02\bTapio.V1\xca\x02\bTapio\\V1\xe2\x02\x14Tapio\\V1\\GPBMetadata\xea\x02\tTapio::V1b\x06proto3"
 
 var (
 	file_tapio_v1_raw_proto_rawDescOnce sync.Once
