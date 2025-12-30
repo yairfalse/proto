@@ -18,3 +18,9 @@ plugins:
     out: gen/go
     opt:
       - paths=source_relative
+
+  # Go gRPC service code
+  - remote: buf.build/grpc/go
+    out: gen/go
+    opt:
+      - paths=source_relative
