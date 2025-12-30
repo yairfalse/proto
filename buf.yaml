@@ -4,7 +4,7 @@
 # Modules:
 #   - tapio/v1  : raw.ebpf format (eBPF agent events)
 #   - portti/v1 : raw.k8s format (K8s API events)
-#   - elava/v1  : raw.otel format (OTEL logs/traces)
+#   - elava/v1  : raw.cloud format (cloud resource events)
 #   - ahti/v1   : AhtiEvent format (central intelligence)
 
 version: v2

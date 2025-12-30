@@ -1,0 +1,298 @@
+// raw.proto - ELAVA's raw cloud resource event format
+//
+// This is ELAVA's output format. POLKU transforms this to AhtiEvent.
+// ELAVA owns this schema - no ahti/domain dependency.
+//
+// ELAVA scans cloud provider APIs and emits resource state changes.
+// Supports: AWS, GCP, Azure (extensible via provider enum)
+
+syntax = "proto3";
+
+package elava.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// RawCloudEvent is ELAVA's output format
+// POLKU transforms this to AhtiEvent
+message RawCloudEvent {
+    // Identity
+    string id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+
+    // Classification
+    CloudProvider provider = 3;
+    string resource_type = 4;           // ec2_instance, rds_cluster, gce_instance, etc.
+    string region = 5;
+    string account_id = 6;              // AWS account, GCP project, Azure subscription
+
+    // Resource identity
+    string resource_id = 7;             // Provider-specific ID (ARN, resource path, etc.)
+    string resource_name = 8;           // Human-readable name
+    map<string, string> tags = 9;       // Cloud provider tags
+
+    // Change tracking
+    ChangeType change_type = 10;
+    string previous_state = 11;         // JSON of previous state (for diffs)
+    string current_state = 12;          // JSON of current state
+
+    // Provider-specific data (one of these set)
+    oneof data {
+        AwsData aws = 20;
+        GcpData gcp = 21;
+        AzureData azure = 22;
+    }
+}
+
+enum CloudProvider {
+    CLOUD_PROVIDER_UNSPECIFIED = 0;
+    CLOUD_PROVIDER_AWS = 1;
+    CLOUD_PROVIDER_GCP = 2;
+    CLOUD_PROVIDER_AZURE = 3;
+}
+
+enum ChangeType {
+    CHANGE_TYPE_UNSPECIFIED = 0;
+    CHANGE_TYPE_CREATED = 1;
+    CHANGE_TYPE_UPDATED = 2;
+    CHANGE_TYPE_DELETED = 3;
+    CHANGE_TYPE_SNAPSHOT = 4;           // Full state capture (no diff)
+}
+
+// =============================================================================
+// AWS DATA
+// =============================================================================
+
+message AwsData {
+    string arn = 1;
+    string availability_zone = 2;
+    string vpc_id = 3;
+    string subnet_id = 4;
+
+    // Type-specific data
+    oneof resource {
+        Ec2InstanceData ec2_instance = 10;
+        RdsInstanceData rds_instance = 11;
+        S3BucketData s3_bucket = 12;
+        LambdaFunctionData lambda_function = 13;
+        EcsServiceData ecs_service = 14;
+        EksClusterData eks_cluster = 15;
+        ElbData elb = 16;
+    }
+}
+
+message Ec2InstanceData {
+    string instance_id = 1;
+    string instance_type = 2;
+    string state = 3;                   // running, stopped, terminated
+    string private_ip = 4;
+    string public_ip = 5;
+    string ami_id = 6;
+    repeated string security_groups = 7;
+    string iam_role = 8;
+}
+
+message RdsInstanceData {
+    string db_instance_id = 1;
+    string engine = 2;                  // mysql, postgres, aurora
+    string engine_version = 3;
+    string instance_class = 4;
+    string status = 5;
+    string endpoint = 6;
+    int32 port = 7;
+    bool multi_az = 8;
+    string storage_type = 9;
+    int32 allocated_storage_gb = 10;
+}
+
+message S3BucketData {
+    string bucket_name = 1;
+    string region = 2;
+    bool versioning_enabled = 3;
+    bool encryption_enabled = 4;
+    bool public_access_blocked = 5;
+}
+
+message LambdaFunctionData {
+    string function_name = 1;
+    string runtime = 2;
+    int32 memory_mb = 3;
+    int32 timeout_seconds = 4;
+    string handler = 5;
+    string last_modified = 6;
+}
+
+message EcsServiceData {
+    string cluster_name = 1;
+    string service_name = 2;
+    string task_definition = 3;
+    int32 desired_count = 4;
+    int32 running_count = 5;
+    int32 pending_count = 6;
+    string launch_type = 7;             // EC2, FARGATE
+}
+
+message EksClusterData {
+    string cluster_name = 1;
+    string version = 2;
+    string status = 3;
+    string endpoint = 4;
+    string role_arn = 5;
+    repeated string subnet_ids = 6;
+    repeated string security_group_ids = 7;
+}
+
+message ElbData {
+    string load_balancer_name = 1;
+    string type = 2;                    // application, network, classic
+    string scheme = 3;                  // internet-facing, internal
+    string state = 4;
+    string dns_name = 5;
+    repeated string availability_zones = 6;
+}
+
+// =============================================================================
+// GCP DATA
+// =============================================================================
+
+message GcpData {
+    string project_id = 1;
+    string zone = 2;
+    string self_link = 3;
+
+    // Type-specific data
+    oneof resource {
+        GceInstanceData gce_instance = 10;
+        GkeClusterData gke_cluster = 11;
+        CloudSqlData cloud_sql = 12;
+        GcsData gcs = 13;
+        CloudFunctionData cloud_function = 14;
+        CloudRunData cloud_run = 15;
+    }
+}
+
+message GceInstanceData {
+    string instance_id = 1;
+    string machine_type = 2;
+    string status = 3;                  // RUNNING, STOPPED, TERMINATED
+    string internal_ip = 4;
+    string external_ip = 5;
+    string image = 6;
+    repeated string network_tags = 7;
+    string service_account = 8;
+}
+
+message GkeClusterData {
+    string cluster_name = 1;
+    string master_version = 2;
+    string status = 3;
+    string endpoint = 4;
+    int32 node_count = 5;
+    string location = 6;
+    repeated string node_pools = 7;
+}
+
+message CloudSqlData {
+    string instance_name = 1;
+    string database_version = 2;        // MYSQL_8_0, POSTGRES_14
+    string tier = 3;
+    string state = 4;
+    string ip_address = 5;
+    bool high_availability = 6;
+}
+
+message GcsData {
+    string bucket_name = 1;
+    string location = 2;
+    string storage_class = 3;
+    bool versioning_enabled = 4;
+    bool uniform_bucket_access = 5;
+}
+
+message CloudFunctionData {
+    string function_name = 1;
+    string runtime = 2;
+    int32 memory_mb = 3;
+    int32 timeout_seconds = 4;
+    string entry_point = 5;
+    string status = 6;
+}
+
+message CloudRunData {
+    string service_name = 1;
+    string url = 2;
+    string latest_revision = 3;
+    int32 traffic_percent = 4;
+}
+
+// =============================================================================
+// AZURE DATA
+// =============================================================================
+
+message AzureData {
+    string subscription_id = 1;
+    string resource_group = 2;
+    string location = 3;
+    string resource_id = 4;             // Full ARM resource ID
+
+    // Type-specific data
+    oneof resource {
+        AzureVmData vm = 10;
+        AksClusterData aks_cluster = 11;
+        AzureSqlData azure_sql = 12;
+        StorageAccountData storage_account = 13;
+        AzureFunctionData azure_function = 14;
+    }
+}
+
+message AzureVmData {
+    string vm_name = 1;
+    string vm_size = 2;
+    string provisioning_state = 3;
+    string power_state = 4;
+    string private_ip = 5;
+    string public_ip = 6;
+    string os_type = 7;
+}
+
+message AksClusterData {
+    string cluster_name = 1;
+    string kubernetes_version = 2;
+    string provisioning_state = 3;
+    string fqdn = 4;
+    int32 agent_pool_count = 5;
+}
+
+message AzureSqlData {
+    string server_name = 1;
+    string database_name = 2;
+    string status = 3;
+    string edition = 4;
+    string service_objective = 5;
+    string fqdn = 6;
+}
+
+message StorageAccountData {
+    string account_name = 1;
+    string kind = 2;                    // StorageV2, BlobStorage
+    string sku = 3;
+    string access_tier = 4;
+    bool https_only = 5;
+}
+
+message AzureFunctionData {
+    string function_app_name = 1;
+    string runtime = 2;
+    string state = 3;
+    string default_host_name = 4;
+}
+
+// =============================================================================
+// BATCH MESSAGE (for streaming to POLKU)
+// =============================================================================
+
+message EventBatch {
+    repeated RawCloudEvent events = 1;
+    string source = 2;                  // "elava"
+    CloudProvider provider = 3;         // Primary provider for this batch
+    string account_id = 4;              // Cloud account/project
+}

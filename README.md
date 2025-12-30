@@ -8,7 +8,7 @@ Central protobuf schemas for the observability platform.
 |------|--------|----------|----------|
 | `tapio/v1` | raw.ebpf | TAPIO | POLKU |
 | `portti/v1` | raw.k8s | PORTTI | POLKU |
-| `elava/v1` | raw.otel | ELAVA | POLKU |
+| `elava/v1` | raw.cloud | ELAVA | POLKU |
 | `ahti/v1` | AhtiEvent | POLKU | AHTI |
 
 ## Usage
