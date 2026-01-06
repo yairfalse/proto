@@ -15,6 +15,8 @@ syntax = "proto3";
 
 package polku.v1;
 
+option go_package = "github.com/yairfalse/proto/gen/go/polku/v1;polkuv1";
+
 // Gateway service - the main entry point for event ingestion
 service Gateway {
     // Bidirectional streaming for high-throughput event ingestion
@@ -107,4 +109,45 @@ message HealthResponse {
 message ComponentHealth {
     bool healthy = 1;
     string message = 2;
+}
+
+// =============================================================================
+// PORTTI SERVICE - K8s API event ingestion
+// =============================================================================
+//
+// Optional service for receiving K8s control plane events from PORTTI.
+// If you don't use PORTTI, you can ignore this service.
+
+// PorttiService receives K8s events from PORTTI collectors
+service PorttiService {
+    // Send a single K8s event
+    rpc SendK8sEvent(K8sEvent) returns (SendResponse);
+
+    // Stream K8s events for high-throughput ingestion
+    rpc StreamK8sEvents(stream K8sEventBatch) returns (stream Ack);
+}
+
+// K8s event from PORTTI (matches portti/pkg/proto format)
+message K8sEvent {
+    string id = 1;                      // Event ID (ULID)
+    int64 timestamp_unix_nano = 2;      // Unix timestamp in nanoseconds
+    string resource = 3;                // Resource type: deployment, pod, service, etc.
+    string action = 4;                  // Action: create, update, delete
+    string namespace = 5;               // K8s namespace
+    string name = 6;                    // Resource name
+    bytes object = 7;                   // JSON-encoded K8s object
+    bytes old_object = 8;               // For updates (previous state)
+    string cluster_id = 9;              // Cluster identifier
+}
+
+// Batch of K8s events for streaming
+message K8sEventBatch {
+    repeated K8sEvent events = 1;
+    string cluster_id = 2;
+}
+
+// Simple response for unary RPCs
+message SendResponse {
+    bool success = 1;
+    string error = 2;                   // Error message if success=false
 }
