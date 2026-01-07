@@ -9,6 +9,7 @@ syntax = "proto3";
 package ahti.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 // AhtiEvent is the unified event format for the observability platform
 message AhtiEvent {
@@ -51,10 +52,12 @@ message AhtiEvent {
         K8sEventData k8s = 23;
         ProcessEventData process = 24;
         ResourceEventData resource = 25;
+        SignalContextEvent signal_context = 26;  // Prometheus metrics snapshot
+        OTelEventData otel = 27;                 // OpenTelemetry trace data (from OVELA)
     }
 }
 
-// Event types (12 base types)
+// Event types (13 base types)
 enum EventType {
     EVENT_TYPE_UNSPECIFIED = 0;
     EVENT_TYPE_NETWORK = 1;
@@ -69,6 +72,7 @@ enum EventType {
     EVENT_TYPE_PERFORMANCE = 10;
     EVENT_TYPE_RESOURCE = 11;
     EVENT_TYPE_CLUSTER = 12;
+    EVENT_TYPE_SIGNAL = 13;                     // Prometheus metric context
 }
 
 enum Severity {
@@ -300,4 +304,155 @@ message ResourceEventData {
     uint64 disk_used = 8;
     uint64 disk_available = 9;
     double disk_io_utilization = 10;
+}
+
+// =============================================================================
+// SIGNAL CONTEXT (enriched by POLKU from Prometheus)
+// =============================================================================
+
+// SignalContext contains metric snapshots from Prometheus
+// attached to events for causality analysis.
+// POLKU queries Prometheus when interesting events occur
+// and emits this as a companion event.
+message SignalContextEvent {
+    string linked_event_id = 1;                 // ID of the event this context belongs to
+    google.protobuf.Timestamp query_time = 2;   // When Prometheus was queried
+    google.protobuf.Duration window = 3;        // How far back we looked (e.g., 15min)
+
+    repeated SignalSnapshot signals = 4;
+}
+
+message SignalSnapshot {
+    string metric_name = 1;                     // e.g., "container_cpu_usage_seconds_total"
+    map<string, string> labels = 2;             // Prometheus labels
+    repeated SignalDataPoint datapoints = 3;    // Time series data
+
+    // Anomaly detection (optional, computed by POLKU)
+    bool is_anomaly = 4;
+    double anomaly_score = 5;                   // 0.0 - 1.0
+    string anomaly_type = 6;                    // spike, drop, trend, deviation
+}
+
+message SignalDataPoint {
+    google.protobuf.Timestamp timestamp = 1;
+    double value = 2;
+}
+
+// =============================================================================
+// OTEL EVENT DATA (from OVELA - sampled traces)
+// =============================================================================
+
+// OTelEventData contains trace information from sampled spans.
+// OVELA (the tail-sampling OTel Collector) extracts this from interesting
+// traces and converts them to AhtiEvents for causality analysis.
+//
+// Use cases:
+// - Correlate slow traces with infrastructure events
+// - Understand what the app was doing during an incident
+// - Trace errors back to their root cause
+message OTelEventData {
+    // Service identification
+    string service_name = 1;                    // From resource.service.name
+    string service_version = 2;                 // From resource.service.version
+    string service_namespace = 3;               // From resource.service.namespace
+
+    // Span details
+    string operation_name = 4;                  // Span name (e.g., "GET /api/users")
+    SpanKind span_kind = 5;                     // CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL
+    string status_code = 6;                     // OK, ERROR, UNSET
+    string status_message = 7;                  // Error message if status == ERROR
+
+    // Timing
+    double duration_ms = 8;                     // Span duration in milliseconds
+
+    // HTTP details (if applicable)
+    string http_method = 10;                    // GET, POST, etc.
+    string http_url = 11;                       // Full URL
+    string http_route = 12;                     // Route pattern (e.g., "/users/:id")
+    int32 http_status_code = 13;                // 200, 500, etc.
+
+    // Database details (if applicable)
+    string db_system = 20;                      // mysql, postgresql, redis, mongodb
+    string db_name = 21;                        // Database name
+    string db_operation = 22;                   // SELECT, INSERT, etc.
+    string db_statement = 23;                   // Query (potentially truncated)
+
+    // RPC details (if applicable)
+    string rpc_system = 30;                     // grpc, thrift, etc.
+    string rpc_service = 31;                    // Service name
+    string rpc_method = 32;                     // Method name
+
+    // Messaging details (if applicable)
+    string messaging_system = 40;               // kafka, rabbitmq, etc.
+    string messaging_destination = 41;          // Topic/queue name
+    string messaging_operation = 42;            // send, receive, process
+
+    // Error details
+    string exception_type = 50;                 // Exception class name
+    string exception_message = 51;              // Exception message
+    string exception_stacktrace = 52;           // Stack trace (potentially truncated)
+
+    // Why this trace was sampled (set by OVELA)
+    string sample_reason = 60;                  // error, slow, retry, db_error, server_error
+
+    // Additional attributes (arbitrary key-value pairs from span)
+    map<string, string> attributes = 70;
+
+    // Link to parent span (for causality chaining)
+    repeated SpanLink links = 80;
+}
+
+// SpanKind mirrors OTel's SpanKind enum
+enum SpanKind {
+    SPAN_KIND_UNSPECIFIED = 0;
+    SPAN_KIND_INTERNAL = 1;
+    SPAN_KIND_SERVER = 2;
+    SPAN_KIND_CLIENT = 3;
+    SPAN_KIND_PRODUCER = 4;
+    SPAN_KIND_CONSUMER = 5;
+}
+
+// SpanLink represents a link to another trace/span
+message SpanLink {
+    string trace_id = 1;
+    string span_id = 2;
+    string trace_state = 3;
+    map<string, string> attributes = 4;
+}
+
+// =============================================================================
+// AHTI SERVICE (event ingestion)
+// =============================================================================
+
+// AhtiService receives events from POLKU gateway
+service AhtiService {
+    // SendEvent sends a single event to AHTI
+    rpc SendEvent(AhtiEvent) returns (AhtiAck);
+
+    // StreamEvents streams batches of events to AHTI
+    rpc StreamEvents(stream AhtiEventBatch) returns (stream AhtiAck);
+
+    // Health check
+    rpc Health(AhtiHealthRequest) returns (AhtiHealthResponse);
+}
+
+// AhtiEventBatch contains multiple events for efficient streaming
+message AhtiEventBatch {
+    repeated AhtiEvent events = 1;
+}
+
+// AhtiAck acknowledges receipt of events
+message AhtiAck {
+    repeated string event_ids = 1;  // IDs of successfully received events
+    bool success = 2;
+    string error = 3;               // Error message if success=false
+}
+
+// AhtiHealthRequest is the health check request
+message AhtiHealthRequest {}
+
+// AhtiHealthResponse is the health check response
+message AhtiHealthResponse {
+    bool healthy = 1;
+    string version = 2;
 }
