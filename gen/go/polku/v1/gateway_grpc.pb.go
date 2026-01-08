@@ -213,3 +213,146 @@ var Gateway_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "polku/v1/gateway.proto",
 }
+
+const (
+	PorttiService_SendK8SEvent_FullMethodName    = "/polku.v1.PorttiService/SendK8sEvent"
+	PorttiService_StreamK8SEvents_FullMethodName = "/polku.v1.PorttiService/StreamK8sEvents"
+)
+
+// PorttiServiceClient is the client API for PorttiService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// PorttiService receives K8s events from PORTTI collectors
+type PorttiServiceClient interface {
+	// Send a single K8s event
+	SendK8SEvent(ctx context.Context, in *K8SEvent, opts ...grpc.CallOption) (*SendResponse, error)
+	// Stream K8s events for high-throughput ingestion
+	StreamK8SEvents(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[K8SEventBatch, Ack], error)
+}
+
+type porttiServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewPorttiServiceClient(cc grpc.ClientConnInterface) PorttiServiceClient {
+	return &porttiServiceClient{cc}
+}
+
+func (c *porttiServiceClient) SendK8SEvent(ctx context.Context, in *K8SEvent, opts ...grpc.CallOption) (*SendResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendResponse)
+	err := c.cc.Invoke(ctx, PorttiService_SendK8SEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *porttiServiceClient) StreamK8SEvents(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[K8SEventBatch, Ack], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PorttiService_ServiceDesc.Streams[0], PorttiService_StreamK8SEvents_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[K8SEventBatch, Ack]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PorttiService_StreamK8SEventsClient = grpc.BidiStreamingClient[K8SEventBatch, Ack]
+
+// PorttiServiceServer is the server API for PorttiService service.
+// All implementations must embed UnimplementedPorttiServiceServer
+// for forward compatibility.
+//
+// PorttiService receives K8s events from PORTTI collectors
+type PorttiServiceServer interface {
+	// Send a single K8s event
+	SendK8SEvent(context.Context, *K8SEvent) (*SendResponse, error)
+	// Stream K8s events for high-throughput ingestion
+	StreamK8SEvents(grpc.BidiStreamingServer[K8SEventBatch, Ack]) error
+	mustEmbedUnimplementedPorttiServiceServer()
+}
+
+// UnimplementedPorttiServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedPorttiServiceServer struct{}
+
+func (UnimplementedPorttiServiceServer) SendK8SEvent(context.Context, *K8SEvent) (*SendResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendK8SEvent not implemented")
+}
+func (UnimplementedPorttiServiceServer) StreamK8SEvents(grpc.BidiStreamingServer[K8SEventBatch, Ack]) error {
+	return status.Error(codes.Unimplemented, "method StreamK8SEvents not implemented")
+}
+func (UnimplementedPorttiServiceServer) mustEmbedUnimplementedPorttiServiceServer() {}
+func (UnimplementedPorttiServiceServer) testEmbeddedByValue()                       {}
+
+// UnsafePorttiServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to PorttiServiceServer will
+// result in compilation errors.
+type UnsafePorttiServiceServer interface {
+	mustEmbedUnimplementedPorttiServiceServer()
+}
+
+func RegisterPorttiServiceServer(s grpc.ServiceRegistrar, srv PorttiServiceServer) {
+	// If the following call panics, it indicates UnimplementedPorttiServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&PorttiService_ServiceDesc, srv)
+}
+
+func _PorttiService_SendK8SEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(K8SEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PorttiServiceServer).SendK8SEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PorttiService_SendK8SEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PorttiServiceServer).SendK8SEvent(ctx, req.(*K8SEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PorttiService_StreamK8SEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(PorttiServiceServer).StreamK8SEvents(&grpc.GenericServerStream[K8SEventBatch, Ack]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PorttiService_StreamK8SEventsServer = grpc.BidiStreamingServer[K8SEventBatch, Ack]
+
+// PorttiService_ServiceDesc is the grpc.ServiceDesc for PorttiService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var PorttiService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "polku.v1.PorttiService",
+	HandlerType: (*PorttiServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SendK8sEvent",
+			Handler:    _PorttiService_SendK8SEvent_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamK8sEvents",
+			Handler:       _PorttiService_StreamK8SEvents_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "polku/v1/gateway.proto",
+}

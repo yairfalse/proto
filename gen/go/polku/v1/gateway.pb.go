@@ -723,6 +723,221 @@ func (x *ComponentHealth) GetMessage() string {
 	return ""
 }
 
+// K8s event from PORTTI (matches portti/pkg/proto format)
+type K8SEvent struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                           // Event ID (ULID)
+	TimestampUnixNano int64                  `protobuf:"varint,2,opt,name=timestamp_unix_nano,json=timestampUnixNano,proto3" json:"timestamp_unix_nano,omitempty"` // Unix timestamp in nanoseconds
+	Resource          string                 `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`                                               // Resource type: deployment, pod, service, etc.
+	Action            string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`                                                   // Action: create, update, delete
+	Namespace         string                 `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`                                             // K8s namespace
+	Name              string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`                                                       // Resource name
+	Object            []byte                 `protobuf:"bytes,7,opt,name=object,proto3" json:"object,omitempty"`                                                   // JSON-encoded K8s object
+	OldObject         []byte                 `protobuf:"bytes,8,opt,name=old_object,json=oldObject,proto3" json:"old_object,omitempty"`                            // For updates (previous state)
+	ClusterId         string                 `protobuf:"bytes,9,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`                            // Cluster identifier
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *K8SEvent) Reset() {
+	*x = K8SEvent{}
+	mi := &file_polku_v1_gateway_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *K8SEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*K8SEvent) ProtoMessage() {}
+
+func (x *K8SEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_polku_v1_gateway_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use K8SEvent.ProtoReflect.Descriptor instead.
+func (*K8SEvent) Descriptor() ([]byte, []int) {
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *K8SEvent) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *K8SEvent) GetTimestampUnixNano() int64 {
+	if x != nil {
+		return x.TimestampUnixNano
+	}
+	return 0
+}
+
+func (x *K8SEvent) GetResource() string {
+	if x != nil {
+		return x.Resource
+	}
+	return ""
+}
+
+func (x *K8SEvent) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *K8SEvent) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *K8SEvent) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *K8SEvent) GetObject() []byte {
+	if x != nil {
+		return x.Object
+	}
+	return nil
+}
+
+func (x *K8SEvent) GetOldObject() []byte {
+	if x != nil {
+		return x.OldObject
+	}
+	return nil
+}
+
+func (x *K8SEvent) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+// Batch of K8s events for streaming
+type K8SEventBatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*K8SEvent            `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	ClusterId     string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *K8SEventBatch) Reset() {
+	*x = K8SEventBatch{}
+	mi := &file_polku_v1_gateway_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *K8SEventBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*K8SEventBatch) ProtoMessage() {}
+
+func (x *K8SEventBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_polku_v1_gateway_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use K8SEventBatch.ProtoReflect.Descriptor instead.
+func (*K8SEventBatch) Descriptor() ([]byte, []int) {
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *K8SEventBatch) GetEvents() []*K8SEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *K8SEventBatch) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+// Simple response for unary RPCs
+type SendResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"` // Error message if success=false
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendResponse) Reset() {
+	*x = SendResponse{}
+	mi := &file_polku_v1_gateway_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendResponse) ProtoMessage() {}
+
+func (x *SendResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_polku_v1_gateway_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendResponse.ProtoReflect.Descriptor instead.
+func (*SendResponse) Descriptor() ([]byte, []int) {
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SendResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SendResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_polku_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_polku_v1_gateway_proto_rawDesc = "" +
@@ -782,11 +997,33 @@ const file_polku_v1_gateway_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2\x19.polku.v1.ComponentHealthR\x05value:\x028\x01\"E\n" +
 	"\x0fComponentHealth\x12\x18\n" +
 	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xb3\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x86\x02\n" +
+	"\bK8sEvent\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
+	"\x13timestamp_unix_nano\x18\x02 \x01(\x03R\x11timestampUnixNano\x12\x1a\n" +
+	"\bresource\x18\x03 \x01(\tR\bresource\x12\x16\n" +
+	"\x06action\x18\x04 \x01(\tR\x06action\x12\x1c\n" +
+	"\tnamespace\x18\x05 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12\x16\n" +
+	"\x06object\x18\a \x01(\fR\x06object\x12\x1d\n" +
+	"\n" +
+	"old_object\x18\b \x01(\fR\toldObject\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\t \x01(\tR\tclusterId\"Z\n" +
+	"\rK8sEventBatch\x12*\n" +
+	"\x06events\x18\x01 \x03(\v2\x12.polku.v1.K8sEventR\x06events\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x02 \x01(\tR\tclusterId\">\n" +
+	"\fSendResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\xb3\x01\n" +
 	"\aGateway\x128\n" +
 	"\fStreamEvents\x12\x15.polku.v1.IngestBatch\x1a\r.polku.v1.Ack(\x010\x01\x121\n" +
 	"\tSendEvent\x12\x15.polku.v1.IngestEvent\x1a\r.polku.v1.Ack\x12;\n" +
-	"\x06Health\x12\x17.polku.v1.HealthRequest\x1a\x18.polku.v1.HealthResponseB\x91\x01\n" +
+	"\x06Health\x12\x17.polku.v1.HealthRequest\x1a\x18.polku.v1.HealthResponse2\x8a\x01\n" +
+	"\rPorttiService\x12:\n" +
+	"\fSendK8sEvent\x12\x12.polku.v1.K8sEvent\x1a\x16.polku.v1.SendResponse\x12=\n" +
+	"\x0fStreamK8sEvents\x12\x17.polku.v1.K8sEventBatch\x1a\r.polku.v1.Ack(\x010\x01B\x91\x01\n" +
 	"\fcom.polku.v1B\fGatewayProtoP\x01Z2github.com/yairfalse/proto/gen/go/polku/v1;polkuv1\xa2\x02\x03PXX\xaa\x02\bPolku.V1\xca\x02\bPolku\\V1\xe2\x02\x14Polku\\V1\\GPBMetadata\xea\x02\tPolku::V1b\x06proto3"
 
 var (
@@ -801,7 +1038,7 @@ func file_polku_v1_gateway_proto_rawDescGZIP() []byte {
 	return file_polku_v1_gateway_proto_rawDescData
 }
 
-var file_polku_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_polku_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_polku_v1_gateway_proto_goTypes = []any{
 	(*IngestBatch)(nil),     // 0: polku.v1.IngestBatch
 	(*RawPayload)(nil),      // 1: polku.v1.RawPayload
@@ -813,29 +1050,37 @@ var file_polku_v1_gateway_proto_goTypes = []any{
 	(*HealthRequest)(nil),   // 7: polku.v1.HealthRequest
 	(*HealthResponse)(nil),  // 8: polku.v1.HealthResponse
 	(*ComponentHealth)(nil), // 9: polku.v1.ComponentHealth
-	nil,                     // 10: polku.v1.Event.MetadataEntry
-	nil,                     // 11: polku.v1.HealthResponse.ComponentsEntry
+	(*K8SEvent)(nil),        // 10: polku.v1.K8sEvent
+	(*K8SEventBatch)(nil),   // 11: polku.v1.K8sEventBatch
+	(*SendResponse)(nil),    // 12: polku.v1.SendResponse
+	nil,                     // 13: polku.v1.Event.MetadataEntry
+	nil,                     // 14: polku.v1.HealthResponse.ComponentsEntry
 }
 var file_polku_v1_gateway_proto_depIdxs = []int32{
 	1,  // 0: polku.v1.IngestBatch.raw:type_name -> polku.v1.RawPayload
 	2,  // 1: polku.v1.IngestBatch.events:type_name -> polku.v1.EventPayload
 	4,  // 2: polku.v1.EventPayload.events:type_name -> polku.v1.Event
 	4,  // 3: polku.v1.IngestEvent.event:type_name -> polku.v1.Event
-	10, // 4: polku.v1.Event.metadata:type_name -> polku.v1.Event.MetadataEntry
+	13, // 4: polku.v1.Event.metadata:type_name -> polku.v1.Event.MetadataEntry
 	6,  // 5: polku.v1.Ack.errors:type_name -> polku.v1.AckError
-	11, // 6: polku.v1.HealthResponse.components:type_name -> polku.v1.HealthResponse.ComponentsEntry
-	9,  // 7: polku.v1.HealthResponse.ComponentsEntry.value:type_name -> polku.v1.ComponentHealth
-	0,  // 8: polku.v1.Gateway.StreamEvents:input_type -> polku.v1.IngestBatch
-	3,  // 9: polku.v1.Gateway.SendEvent:input_type -> polku.v1.IngestEvent
-	7,  // 10: polku.v1.Gateway.Health:input_type -> polku.v1.HealthRequest
-	5,  // 11: polku.v1.Gateway.StreamEvents:output_type -> polku.v1.Ack
-	5,  // 12: polku.v1.Gateway.SendEvent:output_type -> polku.v1.Ack
-	8,  // 13: polku.v1.Gateway.Health:output_type -> polku.v1.HealthResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	14, // 6: polku.v1.HealthResponse.components:type_name -> polku.v1.HealthResponse.ComponentsEntry
+	10, // 7: polku.v1.K8sEventBatch.events:type_name -> polku.v1.K8sEvent
+	9,  // 8: polku.v1.HealthResponse.ComponentsEntry.value:type_name -> polku.v1.ComponentHealth
+	0,  // 9: polku.v1.Gateway.StreamEvents:input_type -> polku.v1.IngestBatch
+	3,  // 10: polku.v1.Gateway.SendEvent:input_type -> polku.v1.IngestEvent
+	7,  // 11: polku.v1.Gateway.Health:input_type -> polku.v1.HealthRequest
+	10, // 12: polku.v1.PorttiService.SendK8sEvent:input_type -> polku.v1.K8sEvent
+	11, // 13: polku.v1.PorttiService.StreamK8sEvents:input_type -> polku.v1.K8sEventBatch
+	5,  // 14: polku.v1.Gateway.StreamEvents:output_type -> polku.v1.Ack
+	5,  // 15: polku.v1.Gateway.SendEvent:output_type -> polku.v1.Ack
+	8,  // 16: polku.v1.Gateway.Health:output_type -> polku.v1.HealthResponse
+	12, // 17: polku.v1.PorttiService.SendK8sEvent:output_type -> polku.v1.SendResponse
+	5,  // 18: polku.v1.PorttiService.StreamK8sEvents:output_type -> polku.v1.Ack
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_polku_v1_gateway_proto_init() }
@@ -857,9 +1102,9 @@ func file_polku_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_polku_v1_gateway_proto_rawDesc), len(file_polku_v1_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   15,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_polku_v1_gateway_proto_goTypes,
 		DependencyIndexes: file_polku_v1_gateway_proto_depIdxs,

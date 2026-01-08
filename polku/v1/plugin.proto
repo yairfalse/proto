@@ -1,0 +1,210 @@
+// plugin.proto - POLKU Plugin Protocol
+//
+// This defines the contract for external plugins.
+// Plugins are separate processes that communicate with POLKU via gRPC.
+//
+// Plugin types:
+// - Ingestor: Transforms raw bytes → Events (e.g., Datadog agent → POLKU events)
+// - Emitter: Sends events to destinations (e.g., events → Splunk)
+//
+// Plugins can be written in any language with gRPC support.
+
+syntax = "proto3";
+
+package polku.v1;
+
+option go_package = "github.com/yairfalse/proto/gen/go/polku/v1;polkuv1";
+
+import "google/protobuf/empty.proto";
+import "polku/v1/gateway.proto";
+
+// =============================================================================
+// PLUGIN INFO (common to all plugin types)
+// =============================================================================
+
+message PluginInfo {
+    string name = 1;           // Unique plugin name (e.g., "datadog-ingestor")
+    string version = 2;        // Semantic version (e.g., "1.2.3")
+    PluginType type = 3;       // Ingestor or Emitter
+
+    // Human-readable description
+    string description = 4;
+
+    // For ingestors: which source names this plugin handles
+    // POLKU routes raw payloads with matching source to this plugin
+    repeated string sources = 5;
+
+    // For emitters: unique emitter name for routing
+    string emitter_name = 6;
+
+    // Capabilities
+    repeated string capabilities = 7;  // e.g., ["batch", "streaming", "health"]
+}
+
+enum PluginType {
+    PLUGIN_TYPE_UNSPECIFIED = 0;
+    PLUGIN_TYPE_INGESTOR = 1;
+    PLUGIN_TYPE_EMITTER = 2;
+}
+
+// =============================================================================
+// INGESTOR PLUGIN
+// =============================================================================
+
+// IngestorPlugin transforms raw bytes into POLKU Events.
+//
+// Example use cases:
+// - Parse Datadog agent format → Events
+// - Parse custom internal format → Events
+// - Parse OpenTelemetry data → Events
+service IngestorPlugin {
+    // Get plugin metadata
+    rpc Info(google.protobuf.Empty) returns (PluginInfo);
+
+    // Health check
+    rpc Health(google.protobuf.Empty) returns (PluginHealthResponse);
+
+    // Transform raw bytes into Events
+    // Called for each batch of raw data matching this plugin's sources
+    rpc Ingest(IngestRequest) returns (IngestResponse);
+}
+
+message IngestRequest {
+    // Source identifier (matches one of PluginInfo.sources)
+    string source = 1;
+
+    // Cluster/environment identifier
+    string cluster = 2;
+
+    // Format hint (e.g., "protobuf", "json", "msgpack")
+    string format = 3;
+
+    // Raw bytes to transform
+    bytes data = 4;
+}
+
+message IngestResponse {
+    // Transformed events
+    repeated Event events = 1;
+
+    // Errors encountered during transformation (non-fatal)
+    // Events may still be returned alongside errors
+    repeated IngestError errors = 2;
+}
+
+message IngestError {
+    string message = 1;
+    string details = 2;
+
+    // If the error is associated with a specific offset in the input
+    int64 offset = 3;
+}
+
+// =============================================================================
+// EMITTER PLUGIN
+// =============================================================================
+
+// EmitterPlugin sends events to external destinations.
+//
+// Example use cases:
+// - Send to Splunk
+// - Send to Datadog
+// - Send to custom internal system
+// - Send to S3/GCS for archival
+service EmitterPlugin {
+    // Get plugin metadata
+    rpc Info(google.protobuf.Empty) returns (PluginInfo);
+
+    // Health check
+    rpc Health(google.protobuf.Empty) returns (PluginHealthResponse);
+
+    // Emit events to destination
+    rpc Emit(EmitRequest) returns (EmitResponse);
+
+    // Graceful shutdown - flush buffers, close connections
+    rpc Shutdown(google.protobuf.Empty) returns (ShutdownResponse);
+}
+
+message EmitRequest {
+    // Events to emit
+    repeated Event events = 1;
+}
+
+message EmitResponse {
+    // Number of events successfully emitted
+    int64 success_count = 1;
+
+    // IDs of events that failed (for retry/dead-letter)
+    repeated string failed_event_ids = 2;
+
+    // Error details for failures
+    repeated EmitError errors = 3;
+}
+
+message EmitError {
+    string event_id = 1;
+    string message = 2;
+    bool retryable = 3;
+}
+
+message ShutdownResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// =============================================================================
+// COMMON
+// =============================================================================
+
+message PluginHealthResponse {
+    bool healthy = 1;
+    string message = 2;
+
+    // Optional: detailed component health
+    map<string, bool> components = 3;
+}
+
+// =============================================================================
+// PLUGIN DISCOVERY (optional - for dynamic plugin loading)
+// =============================================================================
+
+// PluginRegistry is implemented by POLKU, not plugins.
+// Plugins call this to register themselves on startup.
+// Alternative to static configuration.
+service PluginRegistry {
+    // Register a plugin with POLKU
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+
+    // Heartbeat to maintain registration
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // Unregister on shutdown
+    rpc Unregister(UnregisterRequest) returns (google.protobuf.Empty);
+}
+
+message RegisterRequest {
+    PluginInfo info = 1;
+
+    // Address where POLKU can reach this plugin
+    string address = 2;  // e.g., "localhost:9001"
+}
+
+message RegisterResponse {
+    bool accepted = 1;
+    string message = 2;
+
+    // Assigned plugin ID (used for heartbeat/unregister)
+    string plugin_id = 3;
+}
+
+message HeartbeatRequest {
+    string plugin_id = 1;
+}
+
+message HeartbeatResponse {
+    bool acknowledged = 1;
+}
+
+message UnregisterRequest {
+    string plugin_id = 1;
+}

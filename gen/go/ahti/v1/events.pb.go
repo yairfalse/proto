@@ -15,6 +15,7 @@ package ahtiv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -28,7 +29,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Event types (12 base types)
+// Event types (13 base types)
 type EventType int32
 
 const (
@@ -45,6 +46,7 @@ const (
 	EventType_EVENT_TYPE_PERFORMANCE EventType = 10
 	EventType_EVENT_TYPE_RESOURCE    EventType = 11
 	EventType_EVENT_TYPE_CLUSTER     EventType = 12
+	EventType_EVENT_TYPE_SIGNAL      EventType = 13 // Prometheus metric context
 )
 
 // Enum value maps for EventType.
@@ -63,6 +65,7 @@ var (
 		10: "EVENT_TYPE_PERFORMANCE",
 		11: "EVENT_TYPE_RESOURCE",
 		12: "EVENT_TYPE_CLUSTER",
+		13: "EVENT_TYPE_SIGNAL",
 	}
 	EventType_value = map[string]int32{
 		"EVENT_TYPE_UNSPECIFIED": 0,
@@ -78,6 +81,7 @@ var (
 		"EVENT_TYPE_PERFORMANCE": 10,
 		"EVENT_TYPE_RESOURCE":    11,
 		"EVENT_TYPE_CLUSTER":     12,
+		"EVENT_TYPE_SIGNAL":      13,
 	}
 )
 
@@ -468,6 +472,65 @@ func (RelationshipState) EnumDescriptor() ([]byte, []int) {
 	return file_ahti_v1_events_proto_rawDescGZIP(), []int{6}
 }
 
+// SpanKind mirrors OTel's SpanKind enum
+type SpanKind int32
+
+const (
+	SpanKind_SPAN_KIND_UNSPECIFIED SpanKind = 0
+	SpanKind_SPAN_KIND_INTERNAL    SpanKind = 1
+	SpanKind_SPAN_KIND_SERVER      SpanKind = 2
+	SpanKind_SPAN_KIND_CLIENT      SpanKind = 3
+	SpanKind_SPAN_KIND_PRODUCER    SpanKind = 4
+	SpanKind_SPAN_KIND_CONSUMER    SpanKind = 5
+)
+
+// Enum value maps for SpanKind.
+var (
+	SpanKind_name = map[int32]string{
+		0: "SPAN_KIND_UNSPECIFIED",
+		1: "SPAN_KIND_INTERNAL",
+		2: "SPAN_KIND_SERVER",
+		3: "SPAN_KIND_CLIENT",
+		4: "SPAN_KIND_PRODUCER",
+		5: "SPAN_KIND_CONSUMER",
+	}
+	SpanKind_value = map[string]int32{
+		"SPAN_KIND_UNSPECIFIED": 0,
+		"SPAN_KIND_INTERNAL":    1,
+		"SPAN_KIND_SERVER":      2,
+		"SPAN_KIND_CLIENT":      3,
+		"SPAN_KIND_PRODUCER":    4,
+		"SPAN_KIND_CONSUMER":    5,
+	}
+)
+
+func (x SpanKind) Enum() *SpanKind {
+	p := new(SpanKind)
+	*p = x
+	return p
+}
+
+func (x SpanKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SpanKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_ahti_v1_events_proto_enumTypes[7].Descriptor()
+}
+
+func (SpanKind) Type() protoreflect.EnumType {
+	return &file_ahti_v1_events_proto_enumTypes[7]
+}
+
+func (x SpanKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SpanKind.Descriptor instead.
+func (SpanKind) EnumDescriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{7}
+}
+
 // AhtiEvent is the unified event format for the observability platform
 type AhtiEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -505,6 +568,8 @@ type AhtiEvent struct {
 	//	*AhtiEvent_K8S
 	//	*AhtiEvent_Process
 	//	*AhtiEvent_Resource
+	//	*AhtiEvent_SignalContext
+	//	*AhtiEvent_Otel
 	Data          isAhtiEvent_Data `protobuf_oneof:"data"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -720,6 +785,24 @@ func (x *AhtiEvent) GetResource() *ResourceEventData {
 	return nil
 }
 
+func (x *AhtiEvent) GetSignalContext() *SignalContextEvent {
+	if x != nil {
+		if x, ok := x.Data.(*AhtiEvent_SignalContext); ok {
+			return x.SignalContext
+		}
+	}
+	return nil
+}
+
+func (x *AhtiEvent) GetOtel() *OTelEventData {
+	if x != nil {
+		if x, ok := x.Data.(*AhtiEvent_Otel); ok {
+			return x.Otel
+		}
+	}
+	return nil
+}
+
 type isAhtiEvent_Data interface {
 	isAhtiEvent_Data()
 }
@@ -748,6 +831,14 @@ type AhtiEvent_Resource struct {
 	Resource *ResourceEventData `protobuf:"bytes,25,opt,name=resource,proto3,oneof"`
 }
 
+type AhtiEvent_SignalContext struct {
+	SignalContext *SignalContextEvent `protobuf:"bytes,26,opt,name=signal_context,json=signalContext,proto3,oneof"` // Prometheus metrics snapshot
+}
+
+type AhtiEvent_Otel struct {
+	Otel *OTelEventData `protobuf:"bytes,27,opt,name=otel,proto3,oneof"` // OpenTelemetry trace data (from OVELA)
+}
+
 func (*AhtiEvent_Network) isAhtiEvent_Data() {}
 
 func (*AhtiEvent_Kernel) isAhtiEvent_Data() {}
@@ -759,6 +850,10 @@ func (*AhtiEvent_K8S) isAhtiEvent_Data() {}
 func (*AhtiEvent_Process) isAhtiEvent_Data() {}
 
 func (*AhtiEvent_Resource) isAhtiEvent_Data() {}
+
+func (*AhtiEvent_SignalContext) isAhtiEvent_Data() {}
+
+func (*AhtiEvent_Otel) isAhtiEvent_Data() {}
 
 // Entity is a node in the infrastructure graph
 type Entity struct {
@@ -1946,11 +2041,764 @@ func (x *ResourceEventData) GetDiskIoUtilization() float64 {
 	return 0
 }
 
+// SignalContext contains metric snapshots from Prometheus
+// attached to events for causality analysis.
+// POLKU queries Prometheus when interesting events occur
+// and emits this as a companion event.
+type SignalContextEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LinkedEventId string                 `protobuf:"bytes,1,opt,name=linked_event_id,json=linkedEventId,proto3" json:"linked_event_id,omitempty"` // ID of the event this context belongs to
+	QueryTime     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=query_time,json=queryTime,proto3" json:"query_time,omitempty"`               // When Prometheus was queried
+	Window        *durationpb.Duration   `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`                                      // How far back we looked (e.g., 15min)
+	Signals       []*SignalSnapshot      `protobuf:"bytes,4,rep,name=signals,proto3" json:"signals,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignalContextEvent) Reset() {
+	*x = SignalContextEvent{}
+	mi := &file_ahti_v1_events_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignalContextEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignalContextEvent) ProtoMessage() {}
+
+func (x *SignalContextEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignalContextEvent.ProtoReflect.Descriptor instead.
+func (*SignalContextEvent) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SignalContextEvent) GetLinkedEventId() string {
+	if x != nil {
+		return x.LinkedEventId
+	}
+	return ""
+}
+
+func (x *SignalContextEvent) GetQueryTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.QueryTime
+	}
+	return nil
+}
+
+func (x *SignalContextEvent) GetWindow() *durationpb.Duration {
+	if x != nil {
+		return x.Window
+	}
+	return nil
+}
+
+func (x *SignalContextEvent) GetSignals() []*SignalSnapshot {
+	if x != nil {
+		return x.Signals
+	}
+	return nil
+}
+
+type SignalSnapshot struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	MetricName string                 `protobuf:"bytes,1,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`                                                 // e.g., "container_cpu_usage_seconds_total"
+	Labels     map[string]string      `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Prometheus labels
+	Datapoints []*SignalDataPoint     `protobuf:"bytes,3,rep,name=datapoints,proto3" json:"datapoints,omitempty"`                                                                   // Time series data
+	// Anomaly detection (optional, computed by POLKU)
+	IsAnomaly     bool    `protobuf:"varint,4,opt,name=is_anomaly,json=isAnomaly,proto3" json:"is_anomaly,omitempty"`
+	AnomalyScore  float64 `protobuf:"fixed64,5,opt,name=anomaly_score,json=anomalyScore,proto3" json:"anomaly_score,omitempty"` // 0.0 - 1.0
+	AnomalyType   string  `protobuf:"bytes,6,opt,name=anomaly_type,json=anomalyType,proto3" json:"anomaly_type,omitempty"`      // spike, drop, trend, deviation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignalSnapshot) Reset() {
+	*x = SignalSnapshot{}
+	mi := &file_ahti_v1_events_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignalSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignalSnapshot) ProtoMessage() {}
+
+func (x *SignalSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignalSnapshot.ProtoReflect.Descriptor instead.
+func (*SignalSnapshot) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SignalSnapshot) GetMetricName() string {
+	if x != nil {
+		return x.MetricName
+	}
+	return ""
+}
+
+func (x *SignalSnapshot) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *SignalSnapshot) GetDatapoints() []*SignalDataPoint {
+	if x != nil {
+		return x.Datapoints
+	}
+	return nil
+}
+
+func (x *SignalSnapshot) GetIsAnomaly() bool {
+	if x != nil {
+		return x.IsAnomaly
+	}
+	return false
+}
+
+func (x *SignalSnapshot) GetAnomalyScore() float64 {
+	if x != nil {
+		return x.AnomalyScore
+	}
+	return 0
+}
+
+func (x *SignalSnapshot) GetAnomalyType() string {
+	if x != nil {
+		return x.AnomalyType
+	}
+	return ""
+}
+
+type SignalDataPoint struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Value         float64                `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignalDataPoint) Reset() {
+	*x = SignalDataPoint{}
+	mi := &file_ahti_v1_events_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignalDataPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignalDataPoint) ProtoMessage() {}
+
+func (x *SignalDataPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignalDataPoint.ProtoReflect.Descriptor instead.
+func (*SignalDataPoint) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SignalDataPoint) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *SignalDataPoint) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+// OTelEventData contains trace information from sampled spans.
+// OVELA (the tail-sampling OTel Collector) extracts this from interesting
+// traces and converts them to AhtiEvents for causality analysis.
+//
+// Use cases:
+// - Correlate slow traces with infrastructure events
+// - Understand what the app was doing during an incident
+// - Trace errors back to their root cause
+type OTelEventData struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Service identification
+	ServiceName      string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`                // From resource.service.name
+	ServiceVersion   string `protobuf:"bytes,2,opt,name=service_version,json=serviceVersion,proto3" json:"service_version,omitempty"`       // From resource.service.version
+	ServiceNamespace string `protobuf:"bytes,3,opt,name=service_namespace,json=serviceNamespace,proto3" json:"service_namespace,omitempty"` // From resource.service.namespace
+	// Span details
+	OperationName string   `protobuf:"bytes,4,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`         // Span name (e.g., "GET /api/users")
+	SpanKind      SpanKind `protobuf:"varint,5,opt,name=span_kind,json=spanKind,proto3,enum=ahti.v1.SpanKind" json:"span_kind,omitempty"` // CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL
+	StatusCode    string   `protobuf:"bytes,6,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`                  // OK, ERROR, UNSET
+	StatusMessage string   `protobuf:"bytes,7,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"`         // Error message if status == ERROR
+	// Timing
+	DurationMs float64 `protobuf:"fixed64,8,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"` // Span duration in milliseconds
+	// HTTP details (if applicable)
+	HttpMethod     string `protobuf:"bytes,10,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"`                // GET, POST, etc.
+	HttpUrl        string `protobuf:"bytes,11,opt,name=http_url,json=httpUrl,proto3" json:"http_url,omitempty"`                         // Full URL
+	HttpRoute      string `protobuf:"bytes,12,opt,name=http_route,json=httpRoute,proto3" json:"http_route,omitempty"`                   // Route pattern (e.g., "/users/:id")
+	HttpStatusCode int32  `protobuf:"varint,13,opt,name=http_status_code,json=httpStatusCode,proto3" json:"http_status_code,omitempty"` // 200, 500, etc.
+	// Database details (if applicable)
+	DbSystem    string `protobuf:"bytes,20,opt,name=db_system,json=dbSystem,proto3" json:"db_system,omitempty"`          // mysql, postgresql, redis, mongodb
+	DbName      string `protobuf:"bytes,21,opt,name=db_name,json=dbName,proto3" json:"db_name,omitempty"`                // Database name
+	DbOperation string `protobuf:"bytes,22,opt,name=db_operation,json=dbOperation,proto3" json:"db_operation,omitempty"` // SELECT, INSERT, etc.
+	DbStatement string `protobuf:"bytes,23,opt,name=db_statement,json=dbStatement,proto3" json:"db_statement,omitempty"` // Query (potentially truncated)
+	// RPC details (if applicable)
+	RpcSystem  string `protobuf:"bytes,30,opt,name=rpc_system,json=rpcSystem,proto3" json:"rpc_system,omitempty"`    // grpc, thrift, etc.
+	RpcService string `protobuf:"bytes,31,opt,name=rpc_service,json=rpcService,proto3" json:"rpc_service,omitempty"` // Service name
+	RpcMethod  string `protobuf:"bytes,32,opt,name=rpc_method,json=rpcMethod,proto3" json:"rpc_method,omitempty"`    // Method name
+	// Messaging details (if applicable)
+	MessagingSystem      string `protobuf:"bytes,40,opt,name=messaging_system,json=messagingSystem,proto3" json:"messaging_system,omitempty"`                // kafka, rabbitmq, etc.
+	MessagingDestination string `protobuf:"bytes,41,opt,name=messaging_destination,json=messagingDestination,proto3" json:"messaging_destination,omitempty"` // Topic/queue name
+	MessagingOperation   string `protobuf:"bytes,42,opt,name=messaging_operation,json=messagingOperation,proto3" json:"messaging_operation,omitempty"`       // send, receive, process
+	// Error details
+	ExceptionType       string `protobuf:"bytes,50,opt,name=exception_type,json=exceptionType,proto3" json:"exception_type,omitempty"`                   // Exception class name
+	ExceptionMessage    string `protobuf:"bytes,51,opt,name=exception_message,json=exceptionMessage,proto3" json:"exception_message,omitempty"`          // Exception message
+	ExceptionStacktrace string `protobuf:"bytes,52,opt,name=exception_stacktrace,json=exceptionStacktrace,proto3" json:"exception_stacktrace,omitempty"` // Stack trace (potentially truncated)
+	// Why this trace was sampled (set by OVELA)
+	SampleReason string `protobuf:"bytes,60,opt,name=sample_reason,json=sampleReason,proto3" json:"sample_reason,omitempty"` // error, slow, retry, db_error, server_error
+	// Additional attributes (arbitrary key-value pairs from span)
+	Attributes map[string]string `protobuf:"bytes,70,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Link to parent span (for causality chaining)
+	Links         []*SpanLink `protobuf:"bytes,80,rep,name=links,proto3" json:"links,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OTelEventData) Reset() {
+	*x = OTelEventData{}
+	mi := &file_ahti_v1_events_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OTelEventData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OTelEventData) ProtoMessage() {}
+
+func (x *OTelEventData) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OTelEventData.ProtoReflect.Descriptor instead.
+func (*OTelEventData) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *OTelEventData) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetServiceVersion() string {
+	if x != nil {
+		return x.ServiceVersion
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetServiceNamespace() string {
+	if x != nil {
+		return x.ServiceNamespace
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetOperationName() string {
+	if x != nil {
+		return x.OperationName
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetSpanKind() SpanKind {
+	if x != nil {
+		return x.SpanKind
+	}
+	return SpanKind_SPAN_KIND_UNSPECIFIED
+}
+
+func (x *OTelEventData) GetStatusCode() string {
+	if x != nil {
+		return x.StatusCode
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetStatusMessage() string {
+	if x != nil {
+		return x.StatusMessage
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetDurationMs() float64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *OTelEventData) GetHttpMethod() string {
+	if x != nil {
+		return x.HttpMethod
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetHttpUrl() string {
+	if x != nil {
+		return x.HttpUrl
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetHttpRoute() string {
+	if x != nil {
+		return x.HttpRoute
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetHttpStatusCode() int32 {
+	if x != nil {
+		return x.HttpStatusCode
+	}
+	return 0
+}
+
+func (x *OTelEventData) GetDbSystem() string {
+	if x != nil {
+		return x.DbSystem
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetDbName() string {
+	if x != nil {
+		return x.DbName
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetDbOperation() string {
+	if x != nil {
+		return x.DbOperation
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetDbStatement() string {
+	if x != nil {
+		return x.DbStatement
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetRpcSystem() string {
+	if x != nil {
+		return x.RpcSystem
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetRpcService() string {
+	if x != nil {
+		return x.RpcService
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetRpcMethod() string {
+	if x != nil {
+		return x.RpcMethod
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetMessagingSystem() string {
+	if x != nil {
+		return x.MessagingSystem
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetMessagingDestination() string {
+	if x != nil {
+		return x.MessagingDestination
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetMessagingOperation() string {
+	if x != nil {
+		return x.MessagingOperation
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetExceptionType() string {
+	if x != nil {
+		return x.ExceptionType
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetExceptionMessage() string {
+	if x != nil {
+		return x.ExceptionMessage
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetExceptionStacktrace() string {
+	if x != nil {
+		return x.ExceptionStacktrace
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetSampleReason() string {
+	if x != nil {
+		return x.SampleReason
+	}
+	return ""
+}
+
+func (x *OTelEventData) GetAttributes() map[string]string {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+func (x *OTelEventData) GetLinks() []*SpanLink {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
+// SpanLink represents a link to another trace/span
+type SpanLink struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TraceId       string                 `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	SpanId        string                 `protobuf:"bytes,2,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
+	TraceState    string                 `protobuf:"bytes,3,opt,name=trace_state,json=traceState,proto3" json:"trace_state,omitempty"`
+	Attributes    map[string]string      `protobuf:"bytes,4,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpanLink) Reset() {
+	*x = SpanLink{}
+	mi := &file_ahti_v1_events_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpanLink) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpanLink) ProtoMessage() {}
+
+func (x *SpanLink) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpanLink.ProtoReflect.Descriptor instead.
+func (*SpanLink) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SpanLink) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *SpanLink) GetSpanId() string {
+	if x != nil {
+		return x.SpanId
+	}
+	return ""
+}
+
+func (x *SpanLink) GetTraceState() string {
+	if x != nil {
+		return x.TraceState
+	}
+	return ""
+}
+
+func (x *SpanLink) GetAttributes() map[string]string {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+// AhtiEventBatch contains multiple events for efficient streaming
+type AhtiEventBatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AhtiEvent           `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AhtiEventBatch) Reset() {
+	*x = AhtiEventBatch{}
+	mi := &file_ahti_v1_events_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AhtiEventBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AhtiEventBatch) ProtoMessage() {}
+
+func (x *AhtiEventBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AhtiEventBatch.ProtoReflect.Descriptor instead.
+func (*AhtiEventBatch) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *AhtiEventBatch) GetEvents() []*AhtiEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+// AhtiAck acknowledges receipt of events
+type AhtiAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventIds      []string               `protobuf:"bytes,1,rep,name=event_ids,json=eventIds,proto3" json:"event_ids,omitempty"` // IDs of successfully received events
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"` // Error message if success=false
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AhtiAck) Reset() {
+	*x = AhtiAck{}
+	mi := &file_ahti_v1_events_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AhtiAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AhtiAck) ProtoMessage() {}
+
+func (x *AhtiAck) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AhtiAck.ProtoReflect.Descriptor instead.
+func (*AhtiAck) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *AhtiAck) GetEventIds() []string {
+	if x != nil {
+		return x.EventIds
+	}
+	return nil
+}
+
+func (x *AhtiAck) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AhtiAck) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// AhtiHealthRequest is the health check request
+type AhtiHealthRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AhtiHealthRequest) Reset() {
+	*x = AhtiHealthRequest{}
+	mi := &file_ahti_v1_events_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AhtiHealthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AhtiHealthRequest) ProtoMessage() {}
+
+func (x *AhtiHealthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AhtiHealthRequest.ProtoReflect.Descriptor instead.
+func (*AhtiHealthRequest) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{18}
+}
+
+// AhtiHealthResponse is the health check response
+type AhtiHealthResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Healthy       bool                   `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AhtiHealthResponse) Reset() {
+	*x = AhtiHealthResponse{}
+	mi := &file_ahti_v1_events_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AhtiHealthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AhtiHealthResponse) ProtoMessage() {}
+
+func (x *AhtiHealthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ahti_v1_events_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AhtiHealthResponse.ProtoReflect.Descriptor instead.
+func (*AhtiHealthResponse) Descriptor() ([]byte, []int) {
+	return file_ahti_v1_events_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *AhtiHealthResponse) GetHealthy() bool {
+	if x != nil {
+		return x.Healthy
+	}
+	return false
+}
+
+func (x *AhtiHealthResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 var File_ahti_v1_events_proto protoreflect.FileDescriptor
 
 const file_ahti_v1_events_proto_rawDesc = "" +
 	"\n" +
-	"\x14ahti/v1/events.proto\x12\aahti.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x91\b\n" +
+	"\x14ahti/v1/events.proto\x12\aahti.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\"\x85\t\n" +
 	"\tAhtiEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12&\n" +
@@ -1976,7 +2824,9 @@ const file_ahti_v1_events_proto_rawDesc = "" +
 	"\tcontainer\x18\x16 \x01(\v2\x1b.ahti.v1.ContainerEventDataH\x00R\tcontainer\x12)\n" +
 	"\x03k8s\x18\x17 \x01(\v2\x15.ahti.v1.K8sEventDataH\x00R\x03k8s\x125\n" +
 	"\aprocess\x18\x18 \x01(\v2\x19.ahti.v1.ProcessEventDataH\x00R\aprocess\x128\n" +
-	"\bresource\x18\x19 \x01(\v2\x1a.ahti.v1.ResourceEventDataH\x00R\bresource\x1a9\n" +
+	"\bresource\x18\x19 \x01(\v2\x1a.ahti.v1.ResourceEventDataH\x00R\bresource\x12D\n" +
+	"\x0esignal_context\x18\x1a \x01(\v2\x1b.ahti.v1.SignalContextEventH\x00R\rsignalContext\x12,\n" +
+	"\x04otel\x18\x1b \x01(\v2\x16.ahti.v1.OTelEventDataH\x00R\x04otel\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x06\n" +
@@ -2132,7 +2982,93 @@ const file_ahti_v1_events_proto_rawDesc = "" +
 	"\tdisk_used\x18\b \x01(\x04R\bdiskUsed\x12%\n" +
 	"\x0edisk_available\x18\t \x01(\x04R\rdiskAvailable\x12.\n" +
 	"\x13disk_io_utilization\x18\n" +
-	" \x01(\x01R\x11diskIoUtilization*\xc9\x02\n" +
+	" \x01(\x01R\x11diskIoUtilization\"\xdd\x01\n" +
+	"\x12SignalContextEvent\x12&\n" +
+	"\x0flinked_event_id\x18\x01 \x01(\tR\rlinkedEventId\x129\n" +
+	"\n" +
+	"query_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tqueryTime\x121\n" +
+	"\x06window\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x06window\x121\n" +
+	"\asignals\x18\x04 \x03(\v2\x17.ahti.v1.SignalSnapshotR\asignals\"\xca\x02\n" +
+	"\x0eSignalSnapshot\x12\x1f\n" +
+	"\vmetric_name\x18\x01 \x01(\tR\n" +
+	"metricName\x12;\n" +
+	"\x06labels\x18\x02 \x03(\v2#.ahti.v1.SignalSnapshot.LabelsEntryR\x06labels\x128\n" +
+	"\n" +
+	"datapoints\x18\x03 \x03(\v2\x18.ahti.v1.SignalDataPointR\n" +
+	"datapoints\x12\x1d\n" +
+	"\n" +
+	"is_anomaly\x18\x04 \x01(\bR\tisAnomaly\x12#\n" +
+	"\ranomaly_score\x18\x05 \x01(\x01R\fanomalyScore\x12!\n" +
+	"\fanomaly_type\x18\x06 \x01(\tR\vanomalyType\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"a\n" +
+	"\x0fSignalDataPoint\x128\n" +
+	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value\"\x95\t\n" +
+	"\rOTelEventData\x12!\n" +
+	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12'\n" +
+	"\x0fservice_version\x18\x02 \x01(\tR\x0eserviceVersion\x12+\n" +
+	"\x11service_namespace\x18\x03 \x01(\tR\x10serviceNamespace\x12%\n" +
+	"\x0eoperation_name\x18\x04 \x01(\tR\roperationName\x12.\n" +
+	"\tspan_kind\x18\x05 \x01(\x0e2\x11.ahti.v1.SpanKindR\bspanKind\x12\x1f\n" +
+	"\vstatus_code\x18\x06 \x01(\tR\n" +
+	"statusCode\x12%\n" +
+	"\x0estatus_message\x18\a \x01(\tR\rstatusMessage\x12\x1f\n" +
+	"\vduration_ms\x18\b \x01(\x01R\n" +
+	"durationMs\x12\x1f\n" +
+	"\vhttp_method\x18\n" +
+	" \x01(\tR\n" +
+	"httpMethod\x12\x19\n" +
+	"\bhttp_url\x18\v \x01(\tR\ahttpUrl\x12\x1d\n" +
+	"\n" +
+	"http_route\x18\f \x01(\tR\thttpRoute\x12(\n" +
+	"\x10http_status_code\x18\r \x01(\x05R\x0ehttpStatusCode\x12\x1b\n" +
+	"\tdb_system\x18\x14 \x01(\tR\bdbSystem\x12\x17\n" +
+	"\adb_name\x18\x15 \x01(\tR\x06dbName\x12!\n" +
+	"\fdb_operation\x18\x16 \x01(\tR\vdbOperation\x12!\n" +
+	"\fdb_statement\x18\x17 \x01(\tR\vdbStatement\x12\x1d\n" +
+	"\n" +
+	"rpc_system\x18\x1e \x01(\tR\trpcSystem\x12\x1f\n" +
+	"\vrpc_service\x18\x1f \x01(\tR\n" +
+	"rpcService\x12\x1d\n" +
+	"\n" +
+	"rpc_method\x18  \x01(\tR\trpcMethod\x12)\n" +
+	"\x10messaging_system\x18( \x01(\tR\x0fmessagingSystem\x123\n" +
+	"\x15messaging_destination\x18) \x01(\tR\x14messagingDestination\x12/\n" +
+	"\x13messaging_operation\x18* \x01(\tR\x12messagingOperation\x12%\n" +
+	"\x0eexception_type\x182 \x01(\tR\rexceptionType\x12+\n" +
+	"\x11exception_message\x183 \x01(\tR\x10exceptionMessage\x121\n" +
+	"\x14exception_stacktrace\x184 \x01(\tR\x13exceptionStacktrace\x12#\n" +
+	"\rsample_reason\x18< \x01(\tR\fsampleReason\x12F\n" +
+	"\n" +
+	"attributes\x18F \x03(\v2&.ahti.v1.OTelEventData.AttributesEntryR\n" +
+	"attributes\x12'\n" +
+	"\x05links\x18P \x03(\v2\x11.ahti.v1.SpanLinkR\x05links\x1a=\n" +
+	"\x0fAttributesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe1\x01\n" +
+	"\bSpanLink\x12\x19\n" +
+	"\btrace_id\x18\x01 \x01(\tR\atraceId\x12\x17\n" +
+	"\aspan_id\x18\x02 \x01(\tR\x06spanId\x12\x1f\n" +
+	"\vtrace_state\x18\x03 \x01(\tR\n" +
+	"traceState\x12A\n" +
+	"\n" +
+	"attributes\x18\x04 \x03(\v2!.ahti.v1.SpanLink.AttributesEntryR\n" +
+	"attributes\x1a=\n" +
+	"\x0fAttributesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"<\n" +
+	"\x0eAhtiEventBatch\x12*\n" +
+	"\x06events\x18\x01 \x03(\v2\x12.ahti.v1.AhtiEventR\x06events\"V\n" +
+	"\aAhtiAck\x12\x1b\n" +
+	"\tevent_ids\x18\x01 \x03(\tR\beventIds\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"\x13\n" +
+	"\x11AhtiHealthRequest\"H\n" +
+	"\x12AhtiHealthResponse\x12\x18\n" +
+	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion*\xe0\x02\n" +
 	"\tEventType\x12\x1a\n" +
 	"\x16EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12EVENT_TYPE_NETWORK\x10\x01\x12\x15\n" +
@@ -2147,7 +3083,8 @@ const file_ahti_v1_events_proto_rawDesc = "" +
 	"\x16EVENT_TYPE_PERFORMANCE\x10\n" +
 	"\x12\x17\n" +
 	"\x13EVENT_TYPE_RESOURCE\x10\v\x12\x16\n" +
-	"\x12EVENT_TYPE_CLUSTER\x10\f*\x8c\x01\n" +
+	"\x12EVENT_TYPE_CLUSTER\x10\f\x12\x15\n" +
+	"\x11EVENT_TYPE_SIGNAL\x10\r*\x8c\x01\n" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSEVERITY_DEBUG\x10\x01\x12\x11\n" +
@@ -2195,7 +3132,18 @@ const file_ahti_v1_events_proto_rawDesc = "" +
 	"\x11RelationshipState\x12\"\n" +
 	"\x1eRELATIONSHIP_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19RELATIONSHIP_STATE_ACTIVE\x10\x01\x12\x1e\n" +
-	"\x1aRELATIONSHIP_STATE_DELETED\x10\x02B\x89\x01\n" +
+	"\x1aRELATIONSHIP_STATE_DELETED\x10\x02*\x99\x01\n" +
+	"\bSpanKind\x12\x19\n" +
+	"\x15SPAN_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12SPAN_KIND_INTERNAL\x10\x01\x12\x14\n" +
+	"\x10SPAN_KIND_SERVER\x10\x02\x12\x14\n" +
+	"\x10SPAN_KIND_CLIENT\x10\x03\x12\x16\n" +
+	"\x12SPAN_KIND_PRODUCER\x10\x04\x12\x16\n" +
+	"\x12SPAN_KIND_CONSUMER\x10\x052\xc2\x01\n" +
+	"\vAhtiService\x121\n" +
+	"\tSendEvent\x12\x12.ahti.v1.AhtiEvent\x1a\x10.ahti.v1.AhtiAck\x12=\n" +
+	"\fStreamEvents\x12\x17.ahti.v1.AhtiEventBatch\x1a\x10.ahti.v1.AhtiAck(\x010\x01\x12A\n" +
+	"\x06Health\x12\x1a.ahti.v1.AhtiHealthRequest\x1a\x1b.ahti.v1.AhtiHealthResponseB\x89\x01\n" +
 	"\vcom.ahti.v1B\vEventsProtoP\x01Z0github.com/yairfalse/proto/gen/go/ahti/v1;ahtiv1\xa2\x02\x03AXX\xaa\x02\aAhti.V1\xca\x02\aAhti\\V1\xe2\x02\x13Ahti\\V1\\GPBMetadata\xea\x02\bAhti::V1b\x06proto3"
 
 var (
@@ -2210,8 +3158,8 @@ func file_ahti_v1_events_proto_rawDescGZIP() []byte {
 	return file_ahti_v1_events_proto_rawDescData
 }
 
-var file_ahti_v1_events_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_ahti_v1_events_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_ahti_v1_events_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_ahti_v1_events_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_ahti_v1_events_proto_goTypes = []any{
 	(EventType)(0),                // 0: ahti.v1.EventType
 	(Severity)(0),                 // 1: ahti.v1.Severity
@@ -2220,61 +3168,94 @@ var file_ahti_v1_events_proto_goTypes = []any{
 	(EntityState)(0),              // 4: ahti.v1.EntityState
 	(RelationshipType)(0),         // 5: ahti.v1.RelationshipType
 	(RelationshipState)(0),        // 6: ahti.v1.RelationshipState
-	(*AhtiEvent)(nil),             // 7: ahti.v1.AhtiEvent
-	(*Entity)(nil),                // 8: ahti.v1.Entity
-	(*Relationship)(nil),          // 9: ahti.v1.Relationship
-	(*EntityReference)(nil),       // 10: ahti.v1.EntityReference
-	(*EventError)(nil),            // 11: ahti.v1.EventError
-	(*NetworkEventData)(nil),      // 12: ahti.v1.NetworkEventData
-	(*KernelEventData)(nil),       // 13: ahti.v1.KernelEventData
-	(*ContainerEventData)(nil),    // 14: ahti.v1.ContainerEventData
-	(*K8SEventData)(nil),          // 15: ahti.v1.K8sEventData
-	(*ProcessEventData)(nil),      // 16: ahti.v1.ProcessEventData
-	(*ResourceEventData)(nil),     // 17: ahti.v1.ResourceEventData
-	nil,                           // 18: ahti.v1.AhtiEvent.LabelsEntry
-	nil,                           // 19: ahti.v1.Entity.LabelsEntry
-	nil,                           // 20: ahti.v1.Entity.AttributesEntry
-	nil,                           // 21: ahti.v1.Relationship.LabelsEntry
-	nil,                           // 22: ahti.v1.EventError.DetailsEntry
-	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
+	(SpanKind)(0),                 // 7: ahti.v1.SpanKind
+	(*AhtiEvent)(nil),             // 8: ahti.v1.AhtiEvent
+	(*Entity)(nil),                // 9: ahti.v1.Entity
+	(*Relationship)(nil),          // 10: ahti.v1.Relationship
+	(*EntityReference)(nil),       // 11: ahti.v1.EntityReference
+	(*EventError)(nil),            // 12: ahti.v1.EventError
+	(*NetworkEventData)(nil),      // 13: ahti.v1.NetworkEventData
+	(*KernelEventData)(nil),       // 14: ahti.v1.KernelEventData
+	(*ContainerEventData)(nil),    // 15: ahti.v1.ContainerEventData
+	(*K8SEventData)(nil),          // 16: ahti.v1.K8sEventData
+	(*ProcessEventData)(nil),      // 17: ahti.v1.ProcessEventData
+	(*ResourceEventData)(nil),     // 18: ahti.v1.ResourceEventData
+	(*SignalContextEvent)(nil),    // 19: ahti.v1.SignalContextEvent
+	(*SignalSnapshot)(nil),        // 20: ahti.v1.SignalSnapshot
+	(*SignalDataPoint)(nil),       // 21: ahti.v1.SignalDataPoint
+	(*OTelEventData)(nil),         // 22: ahti.v1.OTelEventData
+	(*SpanLink)(nil),              // 23: ahti.v1.SpanLink
+	(*AhtiEventBatch)(nil),        // 24: ahti.v1.AhtiEventBatch
+	(*AhtiAck)(nil),               // 25: ahti.v1.AhtiAck
+	(*AhtiHealthRequest)(nil),     // 26: ahti.v1.AhtiHealthRequest
+	(*AhtiHealthResponse)(nil),    // 27: ahti.v1.AhtiHealthResponse
+	nil,                           // 28: ahti.v1.AhtiEvent.LabelsEntry
+	nil,                           // 29: ahti.v1.Entity.LabelsEntry
+	nil,                           // 30: ahti.v1.Entity.AttributesEntry
+	nil,                           // 31: ahti.v1.Relationship.LabelsEntry
+	nil,                           // 32: ahti.v1.EventError.DetailsEntry
+	nil,                           // 33: ahti.v1.SignalSnapshot.LabelsEntry
+	nil,                           // 34: ahti.v1.OTelEventData.AttributesEntry
+	nil,                           // 35: ahti.v1.SpanLink.AttributesEntry
+	(*timestamppb.Timestamp)(nil), // 36: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 37: google.protobuf.Duration
 }
 var file_ahti_v1_events_proto_depIdxs = []int32{
-	23, // 0: ahti.v1.AhtiEvent.timestamp:type_name -> google.protobuf.Timestamp
+	36, // 0: ahti.v1.AhtiEvent.timestamp:type_name -> google.protobuf.Timestamp
 	0,  // 1: ahti.v1.AhtiEvent.type:type_name -> ahti.v1.EventType
 	1,  // 2: ahti.v1.AhtiEvent.severity:type_name -> ahti.v1.Severity
 	2,  // 3: ahti.v1.AhtiEvent.outcome:type_name -> ahti.v1.Outcome
-	8,  // 4: ahti.v1.AhtiEvent.entities:type_name -> ahti.v1.Entity
-	9,  // 5: ahti.v1.AhtiEvent.relationships:type_name -> ahti.v1.Relationship
-	18, // 6: ahti.v1.AhtiEvent.labels:type_name -> ahti.v1.AhtiEvent.LabelsEntry
-	11, // 7: ahti.v1.AhtiEvent.error:type_name -> ahti.v1.EventError
-	12, // 8: ahti.v1.AhtiEvent.network:type_name -> ahti.v1.NetworkEventData
-	13, // 9: ahti.v1.AhtiEvent.kernel:type_name -> ahti.v1.KernelEventData
-	14, // 10: ahti.v1.AhtiEvent.container:type_name -> ahti.v1.ContainerEventData
-	15, // 11: ahti.v1.AhtiEvent.k8s:type_name -> ahti.v1.K8sEventData
-	16, // 12: ahti.v1.AhtiEvent.process:type_name -> ahti.v1.ProcessEventData
-	17, // 13: ahti.v1.AhtiEvent.resource:type_name -> ahti.v1.ResourceEventData
-	3,  // 14: ahti.v1.Entity.type:type_name -> ahti.v1.EntityType
-	19, // 15: ahti.v1.Entity.labels:type_name -> ahti.v1.Entity.LabelsEntry
-	20, // 16: ahti.v1.Entity.attributes:type_name -> ahti.v1.Entity.AttributesEntry
-	4,  // 17: ahti.v1.Entity.state:type_name -> ahti.v1.EntityState
-	23, // 18: ahti.v1.Entity.deleted_at:type_name -> google.protobuf.Timestamp
-	5,  // 19: ahti.v1.Relationship.type:type_name -> ahti.v1.RelationshipType
-	10, // 20: ahti.v1.Relationship.source:type_name -> ahti.v1.EntityReference
-	10, // 21: ahti.v1.Relationship.target:type_name -> ahti.v1.EntityReference
-	21, // 22: ahti.v1.Relationship.labels:type_name -> ahti.v1.Relationship.LabelsEntry
-	6,  // 23: ahti.v1.Relationship.state:type_name -> ahti.v1.RelationshipState
-	23, // 24: ahti.v1.Relationship.deleted_at:type_name -> google.protobuf.Timestamp
-	23, // 25: ahti.v1.Relationship.created_at:type_name -> google.protobuf.Timestamp
-	3,  // 26: ahti.v1.EntityReference.type:type_name -> ahti.v1.EntityType
-	22, // 27: ahti.v1.EventError.details:type_name -> ahti.v1.EventError.DetailsEntry
-	23, // 28: ahti.v1.ContainerEventData.start_time:type_name -> google.protobuf.Timestamp
-	23, // 29: ahti.v1.ProcessEventData.start_time:type_name -> google.protobuf.Timestamp
-	23, // 30: ahti.v1.ProcessEventData.end_time:type_name -> google.protobuf.Timestamp
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	9,  // 4: ahti.v1.AhtiEvent.entities:type_name -> ahti.v1.Entity
+	10, // 5: ahti.v1.AhtiEvent.relationships:type_name -> ahti.v1.Relationship
+	28, // 6: ahti.v1.AhtiEvent.labels:type_name -> ahti.v1.AhtiEvent.LabelsEntry
+	12, // 7: ahti.v1.AhtiEvent.error:type_name -> ahti.v1.EventError
+	13, // 8: ahti.v1.AhtiEvent.network:type_name -> ahti.v1.NetworkEventData
+	14, // 9: ahti.v1.AhtiEvent.kernel:type_name -> ahti.v1.KernelEventData
+	15, // 10: ahti.v1.AhtiEvent.container:type_name -> ahti.v1.ContainerEventData
+	16, // 11: ahti.v1.AhtiEvent.k8s:type_name -> ahti.v1.K8sEventData
+	17, // 12: ahti.v1.AhtiEvent.process:type_name -> ahti.v1.ProcessEventData
+	18, // 13: ahti.v1.AhtiEvent.resource:type_name -> ahti.v1.ResourceEventData
+	19, // 14: ahti.v1.AhtiEvent.signal_context:type_name -> ahti.v1.SignalContextEvent
+	22, // 15: ahti.v1.AhtiEvent.otel:type_name -> ahti.v1.OTelEventData
+	3,  // 16: ahti.v1.Entity.type:type_name -> ahti.v1.EntityType
+	29, // 17: ahti.v1.Entity.labels:type_name -> ahti.v1.Entity.LabelsEntry
+	30, // 18: ahti.v1.Entity.attributes:type_name -> ahti.v1.Entity.AttributesEntry
+	4,  // 19: ahti.v1.Entity.state:type_name -> ahti.v1.EntityState
+	36, // 20: ahti.v1.Entity.deleted_at:type_name -> google.protobuf.Timestamp
+	5,  // 21: ahti.v1.Relationship.type:type_name -> ahti.v1.RelationshipType
+	11, // 22: ahti.v1.Relationship.source:type_name -> ahti.v1.EntityReference
+	11, // 23: ahti.v1.Relationship.target:type_name -> ahti.v1.EntityReference
+	31, // 24: ahti.v1.Relationship.labels:type_name -> ahti.v1.Relationship.LabelsEntry
+	6,  // 25: ahti.v1.Relationship.state:type_name -> ahti.v1.RelationshipState
+	36, // 26: ahti.v1.Relationship.deleted_at:type_name -> google.protobuf.Timestamp
+	36, // 27: ahti.v1.Relationship.created_at:type_name -> google.protobuf.Timestamp
+	3,  // 28: ahti.v1.EntityReference.type:type_name -> ahti.v1.EntityType
+	32, // 29: ahti.v1.EventError.details:type_name -> ahti.v1.EventError.DetailsEntry
+	36, // 30: ahti.v1.ContainerEventData.start_time:type_name -> google.protobuf.Timestamp
+	36, // 31: ahti.v1.ProcessEventData.start_time:type_name -> google.protobuf.Timestamp
+	36, // 32: ahti.v1.ProcessEventData.end_time:type_name -> google.protobuf.Timestamp
+	36, // 33: ahti.v1.SignalContextEvent.query_time:type_name -> google.protobuf.Timestamp
+	37, // 34: ahti.v1.SignalContextEvent.window:type_name -> google.protobuf.Duration
+	20, // 35: ahti.v1.SignalContextEvent.signals:type_name -> ahti.v1.SignalSnapshot
+	33, // 36: ahti.v1.SignalSnapshot.labels:type_name -> ahti.v1.SignalSnapshot.LabelsEntry
+	21, // 37: ahti.v1.SignalSnapshot.datapoints:type_name -> ahti.v1.SignalDataPoint
+	36, // 38: ahti.v1.SignalDataPoint.timestamp:type_name -> google.protobuf.Timestamp
+	7,  // 39: ahti.v1.OTelEventData.span_kind:type_name -> ahti.v1.SpanKind
+	34, // 40: ahti.v1.OTelEventData.attributes:type_name -> ahti.v1.OTelEventData.AttributesEntry
+	23, // 41: ahti.v1.OTelEventData.links:type_name -> ahti.v1.SpanLink
+	35, // 42: ahti.v1.SpanLink.attributes:type_name -> ahti.v1.SpanLink.AttributesEntry
+	8,  // 43: ahti.v1.AhtiEventBatch.events:type_name -> ahti.v1.AhtiEvent
+	8,  // 44: ahti.v1.AhtiService.SendEvent:input_type -> ahti.v1.AhtiEvent
+	24, // 45: ahti.v1.AhtiService.StreamEvents:input_type -> ahti.v1.AhtiEventBatch
+	26, // 46: ahti.v1.AhtiService.Health:input_type -> ahti.v1.AhtiHealthRequest
+	25, // 47: ahti.v1.AhtiService.SendEvent:output_type -> ahti.v1.AhtiAck
+	25, // 48: ahti.v1.AhtiService.StreamEvents:output_type -> ahti.v1.AhtiAck
+	27, // 49: ahti.v1.AhtiService.Health:output_type -> ahti.v1.AhtiHealthResponse
+	47, // [47:50] is the sub-list for method output_type
+	44, // [44:47] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_ahti_v1_events_proto_init() }
@@ -2289,16 +3270,18 @@ func file_ahti_v1_events_proto_init() {
 		(*AhtiEvent_K8S)(nil),
 		(*AhtiEvent_Process)(nil),
 		(*AhtiEvent_Resource)(nil),
+		(*AhtiEvent_SignalContext)(nil),
+		(*AhtiEvent_Otel)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ahti_v1_events_proto_rawDesc), len(file_ahti_v1_events_proto_rawDesc)),
-			NumEnums:      7,
-			NumMessages:   16,
+			NumEnums:      8,
+			NumMessages:   28,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_ahti_v1_events_proto_goTypes,
 		DependencyIndexes: file_ahti_v1_events_proto_depIdxs,

@@ -1,0 +1,170 @@
+// raw.proto - PORTTI's raw K8s API event format
+//
+// This is PORTTI's output format. POLKU transforms this to AhtiEvent.
+// PORTTI owns this schema - no ahti/domain dependency.
+//
+// PORTTI (Finnish: "gate") watches K8s control plane events and sends them
+// to POLKU for transformation and routing.
+
+syntax = "proto3";
+
+package portti.v1;
+
+option go_package = "github.com/yairfalse/proto/gen/go/portti/v1;porttiv1";
+
+import "google/protobuf/timestamp.proto";
+
+// RawK8sEvent is PORTTI's output format
+// POLKU transforms this to AhtiEvent
+message RawK8sEvent {
+    // Identity
+    string id = 1;                              // ULID
+    google.protobuf.Timestamp timestamp = 2;
+
+    // K8s resource info
+    Resource resource = 3;                       // What changed
+    Action action = 4;                           // create, update, delete
+
+    // Resource identification
+    string namespace = 5;
+    string name = 6;                             // Resource name
+    string uid = 7;                              // K8s UID
+
+    // Raw K8s object (for POLKU to parse)
+    bytes object = 8;                            // JSON-encoded K8s object
+    bytes old_object = 9;                        // For updates (diff detection)
+
+    // Cluster context
+    string cluster_id = 10;
+
+    // Optional: Resource version for consistency
+    string resource_version = 11;
+
+    // Optional: Generation for spec changes vs status changes
+    int64 generation = 12;
+
+    // Optional: Labels from the resource (for quick filtering without parsing object)
+    map<string, string> labels = 13;
+
+    // Optional: Annotations from the resource
+    map<string, string> annotations = 14;
+}
+
+// K8s resource types that PORTTI watches
+enum Resource {
+    RESOURCE_UNSPECIFIED = 0;
+    RESOURCE_DEPLOYMENT = 1;
+    RESOURCE_POD = 2;
+    RESOURCE_SERVICE = 3;
+    RESOURCE_CONFIGMAP = 4;
+    RESOURCE_SECRET = 5;
+    RESOURCE_NODE = 6;
+    RESOURCE_EVENT = 7;                          // K8s Events (scheduling, OOM, etc.)
+    RESOURCE_ENDPOINTS = 8;
+    RESOURCE_REPLICASET = 9;
+    RESOURCE_STATEFULSET = 10;
+    RESOURCE_DAEMONSET = 11;
+    RESOURCE_JOB = 12;
+    RESOURCE_CRONJOB = 13;
+    RESOURCE_PVC = 14;                           // PersistentVolumeClaim
+    RESOURCE_PV = 15;                            // PersistentVolume
+    RESOURCE_INGRESS = 16;
+    RESOURCE_NETWORKPOLICY = 17;
+    RESOURCE_SERVICEACCOUNT = 18;
+    RESOURCE_ROLE = 19;
+    RESOURCE_ROLEBINDING = 20;
+    RESOURCE_CLUSTERROLE = 21;
+    RESOURCE_CLUSTERROLEBINDING = 22;
+    RESOURCE_NAMESPACE = 23;
+    RESOURCE_HPA = 24;                           // HorizontalPodAutoscaler
+    RESOURCE_VPA = 25;                           // VerticalPodAutoscaler
+    RESOURCE_PDB = 26;                           // PodDisruptionBudget
+    RESOURCE_LIMITRANGE = 27;
+    RESOURCE_RESOURCEQUOTA = 28;
+}
+
+// Action taken on the K8s resource
+enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_CREATE = 1;
+    ACTION_UPDATE = 2;
+    ACTION_DELETE = 3;
+}
+
+// =============================================================================
+// BATCH MESSAGE (for streaming to POLKU)
+// =============================================================================
+
+message EventBatch {
+    repeated RawK8sEvent events = 1;
+    string source = 2;                           // "portti"
+    string cluster_id = 3;
+}
+
+// =============================================================================
+// K8S EVENT DETAILS (parsed from K8s Events resource)
+// =============================================================================
+
+// K8sEventDetails provides structured info when Resource == RESOURCE_EVENT
+// This is for K8s Events (scheduling decisions, OOM kills, etc.)
+// Extracted from the object bytes for convenience
+message K8sEventDetails {
+    string type = 1;                             // Normal, Warning
+    string reason = 2;                           // Scheduled, Pulling, Created, OOMKilling
+    string message = 3;
+
+    // Involved object
+    InvolvedObject involved_object = 4;
+
+    // Event source
+    string reporting_controller = 5;             // default-scheduler, kubelet
+    string reporting_instance = 6;               // node-1
+
+    // Counts
+    int32 count = 7;
+    google.protobuf.Timestamp first_timestamp = 8;
+    google.protobuf.Timestamp last_timestamp = 9;
+}
+
+message InvolvedObject {
+    string kind = 1;                             // Pod, Node, Deployment
+    string namespace = 2;
+    string name = 3;
+    string uid = 4;
+}
+
+// =============================================================================
+// PORTTI SERVICE (for streaming events to POLKU)
+// =============================================================================
+
+// PorttiService streams K8s events to POLKU
+// This is optional - PORTTI can also use the generic Gateway service
+service PorttiService {
+    // Stream K8s events to POLKU
+    rpc StreamK8sEvents(stream EventBatch) returns (stream Ack);
+
+    // Health check
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message Ack {
+    repeated string event_ids = 1;               // Successfully received event IDs
+    int64 buffer_size = 2;                       // Current buffer size (for backpressure)
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+    bool healthy = 1;
+    string message = 2;
+
+    // Per-watcher health
+    map<string, WatcherHealth> watchers = 3;
+}
+
+message WatcherHealth {
+    bool healthy = 1;
+    string resource = 2;                         // Which resource this watcher handles
+    int64 events_sent = 3;                       // Total events sent
+    google.protobuf.Timestamp last_event = 4;   // Last event timestamp
+}

@@ -23,6 +23,12 @@ lint:
     - COMMENT_ENUM_VALUE
     - COMMENT_RPC
     - COMMENT_SERVICE
+    # Allow flexible RPC naming (not requiring Request/Response suffixes)
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    # Allow flexible service naming (not requiring Service suffix)
+    - SERVICE_SUFFIX
 
 breaking:
   use:
