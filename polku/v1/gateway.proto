@@ -88,6 +88,38 @@ message Ack {
     repeated AckError errors = 2;       // Errors for failed events
     int64 buffer_size = 3;              // Current buffer size (for backpressure)
     int64 buffer_capacity = 4;          // Max buffer capacity
+
+    // Middleware drop statistics (helps clients understand WHY events aren't processed)
+    // These are cumulative counts since connection start.
+    MiddlewareStats middleware_stats = 5;
+}
+
+// MiddlewareStats provides visibility into the middleware pipeline.
+// Clients can use this to distinguish between:
+//   - Backpressure (buffer full) → slow down, events will be processed
+//   - Rate limiting → you're sending too fast, events are dropped
+//   - Sampling → intentional drops by policy, expected behavior
+message MiddlewareStats {
+    // Rate limiter drops (client exceeding allowed rate)
+    int64 rate_limited_count = 1;
+
+    // Sampler drops (intentional sampling, e.g., 10% of network events)
+    int64 sampled_out_count = 2;
+
+    // Dedup drops (duplicate event IDs within window)
+    int64 dedup_count = 3;
+
+    // Filter drops (events filtered by CEL rules)
+    int64 filtered_count = 4;
+
+    // Buffer full drops (backpressure overflow)
+    int64 buffer_overflow_count = 5;
+
+    // Total events received (before any middleware)
+    int64 total_received = 6;
+
+    // Total events forwarded to Ahti (after all middleware)
+    int64 total_forwarded = 7;
 }
 
 message AckError {

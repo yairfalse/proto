@@ -444,8 +444,11 @@ type Ack struct {
 	Errors         []*AckError            `protobuf:"bytes,2,rep,name=errors,proto3" json:"errors,omitempty"`                                        // Errors for failed events
 	BufferSize     int64                  `protobuf:"varint,3,opt,name=buffer_size,json=bufferSize,proto3" json:"buffer_size,omitempty"`             // Current buffer size (for backpressure)
 	BufferCapacity int64                  `protobuf:"varint,4,opt,name=buffer_capacity,json=bufferCapacity,proto3" json:"buffer_capacity,omitempty"` // Max buffer capacity
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Middleware drop statistics (helps clients understand WHY events aren't processed)
+	// These are cumulative counts since connection start.
+	MiddlewareStats *MiddlewareStats `protobuf:"bytes,5,opt,name=middleware_stats,json=middlewareStats,proto3" json:"middleware_stats,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Ack) Reset() {
@@ -506,6 +509,117 @@ func (x *Ack) GetBufferCapacity() int64 {
 	return 0
 }
 
+func (x *Ack) GetMiddlewareStats() *MiddlewareStats {
+	if x != nil {
+		return x.MiddlewareStats
+	}
+	return nil
+}
+
+// MiddlewareStats provides visibility into the middleware pipeline.
+// Clients can use this to distinguish between:
+//   - Backpressure (buffer full) → slow down, events will be processed
+//   - Rate limiting → you're sending too fast, events are dropped
+//   - Sampling → intentional drops by policy, expected behavior
+type MiddlewareStats struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Rate limiter drops (client exceeding allowed rate)
+	RateLimitedCount int64 `protobuf:"varint,1,opt,name=rate_limited_count,json=rateLimitedCount,proto3" json:"rate_limited_count,omitempty"`
+	// Sampler drops (intentional sampling, e.g., 10% of network events)
+	SampledOutCount int64 `protobuf:"varint,2,opt,name=sampled_out_count,json=sampledOutCount,proto3" json:"sampled_out_count,omitempty"`
+	// Dedup drops (duplicate event IDs within window)
+	DedupCount int64 `protobuf:"varint,3,opt,name=dedup_count,json=dedupCount,proto3" json:"dedup_count,omitempty"`
+	// Filter drops (events filtered by CEL rules)
+	FilteredCount int64 `protobuf:"varint,4,opt,name=filtered_count,json=filteredCount,proto3" json:"filtered_count,omitempty"`
+	// Buffer full drops (backpressure overflow)
+	BufferOverflowCount int64 `protobuf:"varint,5,opt,name=buffer_overflow_count,json=bufferOverflowCount,proto3" json:"buffer_overflow_count,omitempty"`
+	// Total events received (before any middleware)
+	TotalReceived int64 `protobuf:"varint,6,opt,name=total_received,json=totalReceived,proto3" json:"total_received,omitempty"`
+	// Total events forwarded to Ahti (after all middleware)
+	TotalForwarded int64 `protobuf:"varint,7,opt,name=total_forwarded,json=totalForwarded,proto3" json:"total_forwarded,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *MiddlewareStats) Reset() {
+	*x = MiddlewareStats{}
+	mi := &file_polku_v1_gateway_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MiddlewareStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MiddlewareStats) ProtoMessage() {}
+
+func (x *MiddlewareStats) ProtoReflect() protoreflect.Message {
+	mi := &file_polku_v1_gateway_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MiddlewareStats.ProtoReflect.Descriptor instead.
+func (*MiddlewareStats) Descriptor() ([]byte, []int) {
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *MiddlewareStats) GetRateLimitedCount() int64 {
+	if x != nil {
+		return x.RateLimitedCount
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetSampledOutCount() int64 {
+	if x != nil {
+		return x.SampledOutCount
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetDedupCount() int64 {
+	if x != nil {
+		return x.DedupCount
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetFilteredCount() int64 {
+	if x != nil {
+		return x.FilteredCount
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetBufferOverflowCount() int64 {
+	if x != nil {
+		return x.BufferOverflowCount
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetTotalReceived() int64 {
+	if x != nil {
+		return x.TotalReceived
+	}
+	return 0
+}
+
+func (x *MiddlewareStats) GetTotalForwarded() int64 {
+	if x != nil {
+		return x.TotalForwarded
+	}
+	return 0
+}
+
 type AckError struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
@@ -517,7 +631,7 @@ type AckError struct {
 
 func (x *AckError) Reset() {
 	*x = AckError{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[6]
+	mi := &file_polku_v1_gateway_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -529,7 +643,7 @@ func (x *AckError) String() string {
 func (*AckError) ProtoMessage() {}
 
 func (x *AckError) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[6]
+	mi := &file_polku_v1_gateway_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -542,7 +656,7 @@ func (x *AckError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckError.ProtoReflect.Descriptor instead.
 func (*AckError) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{6}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AckError) GetEventId() string {
@@ -575,7 +689,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[7]
+	mi := &file_polku_v1_gateway_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +701,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[7]
+	mi := &file_polku_v1_gateway_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -600,7 +714,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{7}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{8}
 }
 
 type HealthResponse struct {
@@ -615,7 +729,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[8]
+	mi := &file_polku_v1_gateway_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -627,7 +741,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[8]
+	mi := &file_polku_v1_gateway_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -640,7 +754,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{8}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *HealthResponse) GetHealthy() bool {
@@ -681,7 +795,7 @@ type ComponentHealth struct {
 
 func (x *ComponentHealth) Reset() {
 	*x = ComponentHealth{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[9]
+	mi := &file_polku_v1_gateway_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +807,7 @@ func (x *ComponentHealth) String() string {
 func (*ComponentHealth) ProtoMessage() {}
 
 func (x *ComponentHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[9]
+	mi := &file_polku_v1_gateway_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +820,7 @@ func (x *ComponentHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComponentHealth.ProtoReflect.Descriptor instead.
 func (*ComponentHealth) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{9}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ComponentHealth) GetHealthy() bool {
@@ -741,7 +855,7 @@ type K8SEvent struct {
 
 func (x *K8SEvent) Reset() {
 	*x = K8SEvent{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[10]
+	mi := &file_polku_v1_gateway_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +867,7 @@ func (x *K8SEvent) String() string {
 func (*K8SEvent) ProtoMessage() {}
 
 func (x *K8SEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[10]
+	mi := &file_polku_v1_gateway_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,7 +880,7 @@ func (x *K8SEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SEvent.ProtoReflect.Descriptor instead.
 func (*K8SEvent) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{10}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *K8SEvent) GetId() string {
@@ -843,7 +957,7 @@ type K8SEventBatch struct {
 
 func (x *K8SEventBatch) Reset() {
 	*x = K8SEventBatch{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[11]
+	mi := &file_polku_v1_gateway_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -855,7 +969,7 @@ func (x *K8SEventBatch) String() string {
 func (*K8SEventBatch) ProtoMessage() {}
 
 func (x *K8SEventBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[11]
+	mi := &file_polku_v1_gateway_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -868,7 +982,7 @@ func (x *K8SEventBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use K8SEventBatch.ProtoReflect.Descriptor instead.
 func (*K8SEventBatch) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{11}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *K8SEventBatch) GetEvents() []*K8SEvent {
@@ -896,7 +1010,7 @@ type SendResponse struct {
 
 func (x *SendResponse) Reset() {
 	*x = SendResponse{}
-	mi := &file_polku_v1_gateway_proto_msgTypes[12]
+	mi := &file_polku_v1_gateway_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +1022,7 @@ func (x *SendResponse) String() string {
 func (*SendResponse) ProtoMessage() {}
 
 func (x *SendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_polku_v1_gateway_proto_msgTypes[12]
+	mi := &file_polku_v1_gateway_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +1035,7 @@ func (x *SendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendResponse.ProtoReflect.Descriptor instead.
 func (*SendResponse) Descriptor() ([]byte, []int) {
-	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{12}
+	return file_polku_v1_gateway_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SendResponse) GetSuccess() bool {
@@ -973,13 +1087,23 @@ const file_polku_v1_gateway_proto_rawDesc = "" +
 	"\broute_to\x18\a \x03(\tR\arouteTo\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x98\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x01\n" +
 	"\x03Ack\x12\x1b\n" +
 	"\tevent_ids\x18\x01 \x03(\tR\beventIds\x12*\n" +
 	"\x06errors\x18\x02 \x03(\v2\x12.polku.v1.AckErrorR\x06errors\x12\x1f\n" +
 	"\vbuffer_size\x18\x03 \x01(\x03R\n" +
 	"bufferSize\x12'\n" +
-	"\x0fbuffer_capacity\x18\x04 \x01(\x03R\x0ebufferCapacity\"S\n" +
+	"\x0fbuffer_capacity\x18\x04 \x01(\x03R\x0ebufferCapacity\x12D\n" +
+	"\x10middleware_stats\x18\x05 \x01(\v2\x19.polku.v1.MiddlewareStatsR\x0fmiddlewareStats\"\xb7\x02\n" +
+	"\x0fMiddlewareStats\x12,\n" +
+	"\x12rate_limited_count\x18\x01 \x01(\x03R\x10rateLimitedCount\x12*\n" +
+	"\x11sampled_out_count\x18\x02 \x01(\x03R\x0fsampledOutCount\x12\x1f\n" +
+	"\vdedup_count\x18\x03 \x01(\x03R\n" +
+	"dedupCount\x12%\n" +
+	"\x0efiltered_count\x18\x04 \x01(\x03R\rfilteredCount\x122\n" +
+	"\x15buffer_overflow_count\x18\x05 \x01(\x03R\x13bufferOverflowCount\x12%\n" +
+	"\x0etotal_received\x18\x06 \x01(\x03R\rtotalReceived\x12'\n" +
+	"\x0ftotal_forwarded\x18\a \x01(\x03R\x0etotalForwarded\"S\n" +
 	"\bAckError\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
@@ -1038,7 +1162,7 @@ func file_polku_v1_gateway_proto_rawDescGZIP() []byte {
 	return file_polku_v1_gateway_proto_rawDescData
 }
 
-var file_polku_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_polku_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_polku_v1_gateway_proto_goTypes = []any{
 	(*IngestBatch)(nil),     // 0: polku.v1.IngestBatch
 	(*RawPayload)(nil),      // 1: polku.v1.RawPayload
@@ -1046,41 +1170,43 @@ var file_polku_v1_gateway_proto_goTypes = []any{
 	(*IngestEvent)(nil),     // 3: polku.v1.IngestEvent
 	(*Event)(nil),           // 4: polku.v1.Event
 	(*Ack)(nil),             // 5: polku.v1.Ack
-	(*AckError)(nil),        // 6: polku.v1.AckError
-	(*HealthRequest)(nil),   // 7: polku.v1.HealthRequest
-	(*HealthResponse)(nil),  // 8: polku.v1.HealthResponse
-	(*ComponentHealth)(nil), // 9: polku.v1.ComponentHealth
-	(*K8SEvent)(nil),        // 10: polku.v1.K8sEvent
-	(*K8SEventBatch)(nil),   // 11: polku.v1.K8sEventBatch
-	(*SendResponse)(nil),    // 12: polku.v1.SendResponse
-	nil,                     // 13: polku.v1.Event.MetadataEntry
-	nil,                     // 14: polku.v1.HealthResponse.ComponentsEntry
+	(*MiddlewareStats)(nil), // 6: polku.v1.MiddlewareStats
+	(*AckError)(nil),        // 7: polku.v1.AckError
+	(*HealthRequest)(nil),   // 8: polku.v1.HealthRequest
+	(*HealthResponse)(nil),  // 9: polku.v1.HealthResponse
+	(*ComponentHealth)(nil), // 10: polku.v1.ComponentHealth
+	(*K8SEvent)(nil),        // 11: polku.v1.K8sEvent
+	(*K8SEventBatch)(nil),   // 12: polku.v1.K8sEventBatch
+	(*SendResponse)(nil),    // 13: polku.v1.SendResponse
+	nil,                     // 14: polku.v1.Event.MetadataEntry
+	nil,                     // 15: polku.v1.HealthResponse.ComponentsEntry
 }
 var file_polku_v1_gateway_proto_depIdxs = []int32{
 	1,  // 0: polku.v1.IngestBatch.raw:type_name -> polku.v1.RawPayload
 	2,  // 1: polku.v1.IngestBatch.events:type_name -> polku.v1.EventPayload
 	4,  // 2: polku.v1.EventPayload.events:type_name -> polku.v1.Event
 	4,  // 3: polku.v1.IngestEvent.event:type_name -> polku.v1.Event
-	13, // 4: polku.v1.Event.metadata:type_name -> polku.v1.Event.MetadataEntry
-	6,  // 5: polku.v1.Ack.errors:type_name -> polku.v1.AckError
-	14, // 6: polku.v1.HealthResponse.components:type_name -> polku.v1.HealthResponse.ComponentsEntry
-	10, // 7: polku.v1.K8sEventBatch.events:type_name -> polku.v1.K8sEvent
-	9,  // 8: polku.v1.HealthResponse.ComponentsEntry.value:type_name -> polku.v1.ComponentHealth
-	0,  // 9: polku.v1.Gateway.StreamEvents:input_type -> polku.v1.IngestBatch
-	3,  // 10: polku.v1.Gateway.SendEvent:input_type -> polku.v1.IngestEvent
-	7,  // 11: polku.v1.Gateway.Health:input_type -> polku.v1.HealthRequest
-	10, // 12: polku.v1.PorttiService.SendK8sEvent:input_type -> polku.v1.K8sEvent
-	11, // 13: polku.v1.PorttiService.StreamK8sEvents:input_type -> polku.v1.K8sEventBatch
-	5,  // 14: polku.v1.Gateway.StreamEvents:output_type -> polku.v1.Ack
-	5,  // 15: polku.v1.Gateway.SendEvent:output_type -> polku.v1.Ack
-	8,  // 16: polku.v1.Gateway.Health:output_type -> polku.v1.HealthResponse
-	12, // 17: polku.v1.PorttiService.SendK8sEvent:output_type -> polku.v1.SendResponse
-	5,  // 18: polku.v1.PorttiService.StreamK8sEvents:output_type -> polku.v1.Ack
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	14, // 4: polku.v1.Event.metadata:type_name -> polku.v1.Event.MetadataEntry
+	7,  // 5: polku.v1.Ack.errors:type_name -> polku.v1.AckError
+	6,  // 6: polku.v1.Ack.middleware_stats:type_name -> polku.v1.MiddlewareStats
+	15, // 7: polku.v1.HealthResponse.components:type_name -> polku.v1.HealthResponse.ComponentsEntry
+	11, // 8: polku.v1.K8sEventBatch.events:type_name -> polku.v1.K8sEvent
+	10, // 9: polku.v1.HealthResponse.ComponentsEntry.value:type_name -> polku.v1.ComponentHealth
+	0,  // 10: polku.v1.Gateway.StreamEvents:input_type -> polku.v1.IngestBatch
+	3,  // 11: polku.v1.Gateway.SendEvent:input_type -> polku.v1.IngestEvent
+	8,  // 12: polku.v1.Gateway.Health:input_type -> polku.v1.HealthRequest
+	11, // 13: polku.v1.PorttiService.SendK8sEvent:input_type -> polku.v1.K8sEvent
+	12, // 14: polku.v1.PorttiService.StreamK8sEvents:input_type -> polku.v1.K8sEventBatch
+	5,  // 15: polku.v1.Gateway.StreamEvents:output_type -> polku.v1.Ack
+	5,  // 16: polku.v1.Gateway.SendEvent:output_type -> polku.v1.Ack
+	9,  // 17: polku.v1.Gateway.Health:output_type -> polku.v1.HealthResponse
+	13, // 18: polku.v1.PorttiService.SendK8sEvent:output_type -> polku.v1.SendResponse
+	5,  // 19: polku.v1.PorttiService.StreamK8sEvents:output_type -> polku.v1.Ack
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_polku_v1_gateway_proto_init() }
@@ -1102,7 +1228,7 @@ func file_polku_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_polku_v1_gateway_proto_rawDesc), len(file_polku_v1_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
