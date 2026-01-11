@@ -17,6 +17,9 @@ package polku.v1;
 
 option go_package = "github.com/yairfalse/proto/gen/go/polku/v1;polkuv1";
 
+// Import the Event type from the core event proto
+import "polku/v1/event.proto";
+
 // Gateway service - the main entry point for event ingestion
 service Gateway {
     // Bidirectional streaming for high-throughput event ingestion
@@ -49,7 +52,7 @@ message RawPayload {
 
 // Pre-formatted events - pass-through mode (no transformation)
 message EventPayload {
-    repeated Event events = 1;
+    repeated polku.event.v1.Event events = 1;
 }
 
 // Single event for unary ingestion
@@ -58,28 +61,11 @@ message IngestEvent {
     string cluster = 2;
 
     oneof payload {
-        bytes raw = 3;      // Raw bytes (needs transformation)
-        Event event = 4;    // Pre-formatted event (pass-through)
+        bytes raw = 3;                      // Raw bytes (needs transformation)
+        polku.event.v1.Event event = 4;     // Pre-formatted event (pass-through)
     }
 
     string format = 5;      // Format hint for raw payload
-}
-
-// POLKU's internal event envelope
-// This is what InputPlugins produce and OutputPlugins consume.
-// The payload is opaque bytes - POLKU doesn't interpret it.
-message Event {
-    string id = 1;                      // Unique event ID (ULID recommended)
-    int64 timestamp_unix_ns = 2;        // Unix timestamp in nanoseconds
-    string source = 3;                  // Source that produced this event
-    string event_type = 4;              // User-defined event type (e.g., "network", "log")
-    map<string, string> metadata = 5;   // Arbitrary key-value metadata
-
-    // The actual event payload - opaque to POLKU
-    bytes payload = 6;
-
-    // Optional routing hints for OutputPlugins
-    repeated string route_to = 7;       // Which outputs to send to (empty = all)
 }
 
 // Acknowledgment response

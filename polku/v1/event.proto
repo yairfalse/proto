@@ -1,0 +1,251 @@
+// event.proto - POLKU core Event type
+//
+// This proto defines the Event message which is the core data structure
+// used throughout POLKU and its plugins. It's separate from gateway.proto
+// to allow external plugins to depend on just the Event type without
+// pulling in the full Gateway service definition.
+//
+// DESIGN: Event includes typed data that maps directly to Ahti's event types.
+// This ensures type-safe event flow: collectors populate typed fields, and
+// ahti-emitter can directly map them to AhtiEvent without parsing.
+
+syntax = "proto3";
+
+package polku.event.v1;
+
+option go_package = "github.com/yairfalse/proto/gen/go/polku/event/v1;polkueventv1";
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// TYPED EVENT DATA
+// =============================================================================
+// These types mirror ahti.v1 event data types exactly, ensuring direct mapping
+// from Polku events to Ahti events without conversion loss.
+
+// NetworkEventData contains network-level event information
+message NetworkEventData {
+    string protocol = 1;                        // TCP, UDP, DNS, HTTP, gRPC
+    string src_ip = 2;
+    string dst_ip = 3;
+    uint32 src_port = 4;
+    uint32 dst_port = 5;
+    string direction = 6;                       // inbound, outbound
+
+    // DNS
+    string dns_query = 7;
+    string dns_response = 8;
+
+    // HTTP
+    string http_method = 9;
+    string http_path = 10;
+    int32 http_status_code = 11;
+
+    // Metrics
+    double latency_ms = 12;
+    uint64 bytes_sent = 13;
+    uint64 bytes_received = 14;
+
+    // TCP performance
+    double rtt_baseline_ms = 15;
+    double rtt_current_ms = 16;
+    double rtt_degradation_pct = 17;
+    uint32 retransmit_count = 18;
+    string tcp_state = 19;
+
+    // K8s context
+    string process_name = 20;
+    string container_id = 21;
+    string pod_name = 22;
+}
+
+// KernelEventData contains kernel-level event information (eBPF events)
+message KernelEventData {
+    string event_type = 1;                      // oom_kill, signal, syscall
+    uint32 pid = 2;
+    string command = 3;
+
+    // OOM
+    uint32 oom_victim_pid = 4;
+    string oom_victim_comm = 5;
+    uint64 memory_requested = 6;
+
+    // Signals
+    uint32 signal = 7;
+    uint32 signal_code = 8;
+
+    // Syscalls
+    uint32 syscall_id = 9;
+    string syscall_name = 10;
+    int64 syscall_retval = 11;
+}
+
+// ContainerEventData contains container lifecycle and resource events
+message ContainerEventData {
+    string container_id = 1;
+    string container_name = 2;
+    string image = 3;
+    string state = 4;                           // running, stopped, crashed
+    int32 exit_code = 5;
+    int32 restart_count = 6;
+    google.protobuf.Timestamp start_time = 7;
+
+    // Resources
+    double cpu_usage = 8;                       // cores
+    uint64 memory_usage = 9;                    // bytes
+    uint64 memory_limit = 10;
+    uint64 disk_usage = 11;
+
+    // OOM details
+    int32 signal = 12;
+    string cgroup_path = 13;
+}
+
+// K8sEventData contains Kubernetes API events
+message K8sEventData {
+    string resource_type = 1;                   // Deployment, Pod, Service
+    string resource_name = 2;
+    string namespace = 3;
+    string reason = 4;                          // Scheduled, Pulling, Created, Started
+    string message = 5;
+
+    // Deployment specifics
+    int32 replicas = 6;
+    int32 ready_replicas = 7;
+    int32 updated_replicas = 8;
+    string rollout_status = 9;                  // progressing, complete, failed
+}
+
+// ProcessEventData contains process lifecycle events
+message ProcessEventData {
+    uint32 pid = 1;
+    uint32 ppid = 2;
+    string command = 3;
+    string args = 4;
+    uint32 uid = 5;
+    uint32 gid = 6;
+    string user = 7;
+    int32 exit_code = 8;
+    google.protobuf.Timestamp start_time = 9;
+    google.protobuf.Timestamp end_time = 10;
+}
+
+// ResourceEventData contains node/resource utilization events
+message ResourceEventData {
+    string resource_type = 1;                   // cpu, memory, disk, network
+    string node_name = 2;
+
+    // CPU
+    double cpu_usage_pct = 3;
+    double cpu_throttle_pct = 4;
+
+    // Memory
+    uint64 memory_used = 5;
+    uint64 memory_available = 6;
+    double memory_pressure = 7;
+
+    // Disk
+    uint64 disk_used = 8;
+    uint64 disk_available = 9;
+    double disk_io_utilization = 10;
+}
+
+// =============================================================================
+// CLASSIFICATION ENUMS
+// =============================================================================
+
+// Severity indicates the importance/urgency of an event
+enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    SEVERITY_DEBUG = 1;
+    SEVERITY_INFO = 2;
+    SEVERITY_WARNING = 3;
+    SEVERITY_ERROR = 4;
+    SEVERITY_CRITICAL = 5;
+}
+
+// Outcome indicates the result of an operation
+enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    OUTCOME_SUCCESS = 1;
+    OUTCOME_FAILURE = 2;
+    OUTCOME_TIMEOUT = 3;
+    OUTCOME_UNKNOWN = 4;
+}
+
+// =============================================================================
+// MAIN EVENT TYPE
+// =============================================================================
+
+// Event is POLKU's internal event envelope.
+//
+// This is what Ingestors produce and Emitters consume.
+// Events flow through the POLKU pipeline:
+//   Ingestors → Middleware → Buffer → Emitters
+//
+// Events can carry typed data (preferred) or opaque payload bytes (legacy).
+// When typed data is present, ahti-emitter maps it directly to AhtiEvent.
+message Event {
+    // Unique event ID (ULID recommended)
+    //
+    // Should be globally unique. If not provided, POLKU will generate one.
+    // ULIDs are preferred as they're sortable by time.
+    string id = 1;
+
+    // Unix timestamp in nanoseconds
+    //
+    // When the event occurred, not when it was received.
+    // If not provided, POLKU will set it to the current time.
+    int64 timestamp_unix_ns = 2;
+
+    // Source that produced this event
+    //
+    // Identifies the origin of the event (e.g., "tapio", "portti", "elava").
+    // Used for routing and filtering.
+    string source = 3;
+
+    // User-defined event type
+    //
+    // A hierarchical type identifier (e.g., "network.connection", "k8s.pod.created").
+    // Used for routing, filtering, and transformation.
+    string event_type = 4;
+
+    // Arbitrary key-value metadata
+    //
+    // Additional context about the event that doesn't belong in the payload.
+    // Common keys: "cluster", "namespace", "trace_id", "span_id"
+    map<string, string> metadata = 5;
+
+    // Legacy: opaque payload bytes
+    //
+    // DEPRECATED: Prefer using the typed `data` oneof below.
+    // Can be any format: JSON, protobuf, msgpack, etc.
+    // Emitters must parse based on event_type.
+    bytes payload = 6;
+
+    // Optional routing hints for Emitters
+    //
+    // If non-empty, only emitters with matching names will receive this event.
+    // If empty, all emitters receive the event (fan-out).
+    repeated string route_to = 7;
+
+    // ==========================================================================
+    // TYPED EVENT DATA (preferred over payload)
+    // ==========================================================================
+    // When present, ahti-emitter maps these directly to AhtiEvent.data
+    // Only one field in this oneof should be populated per event.
+
+    // Classification
+    Severity severity = 10;
+    Outcome outcome = 11;
+
+    // Typed event data - only one populated per event
+    oneof data {
+        NetworkEventData network = 20;
+        KernelEventData kernel = 21;
+        ContainerEventData container = 22;
+        K8sEventData k8s = 23;
+        ProcessEventData process = 24;
+        ResourceEventData resource = 25;
+    }
+}
